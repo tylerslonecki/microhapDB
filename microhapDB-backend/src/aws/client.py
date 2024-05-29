@@ -1,0 +1,1 @@
+# Client model for AWS service communication

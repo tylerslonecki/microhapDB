@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Microhaplotype Database Report</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+</head>
+<body class="container mt-5">
+    <div class="container">
+        <h1 class="text-center">Microhaplotype Database Report</h1>
+
+        <div class="text-center">
+            <img src="data:image/png;base64,{{ line_chart }}" alt="Line Chart" class="img-fluid">
+        </div>
+
+        <h2 class="mt-5">Summary</h2>
+        <p><strong>Total Unique Microhaplotypes:</strong> {{ total_unique_sequences }}</p>
+        <p><strong>New Microhaplotypes Added in the Latest Batch:</strong> {{ new_sequences_this_batch }}</p>
+
+        <h2 class="mt-5">Version History</h2>
+        <table class="table table-bordered">
+            <thead class="thead-light">
+                <tr>
+                    <th>Version ID</th>
+                    <th>Date Created</th>
+                    <th># of New Microhaplotypes</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for batch in batch_history %}
+                <tr>
+                    <td>{{ "v{0:03d}".format(batch['batch_id']) }}</td>
+                    <td>{{ batch['date'] }}</td>
+                    <td>{{ batch['new_sequences'] }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Bootstrap JavaScript -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+</body>
+</html>
+
