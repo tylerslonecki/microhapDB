@@ -72,8 +72,13 @@ class JobStatusResponse(BaseModel):
     completion_time: Optional[datetime] = None
 
 DATABASE_URL = "postgresql+asyncpg://postgres_user:bipostgres@postgres/microhaplotype"
+SYNC_DATABASE_URL = "postgresql://postgres_user:bipostgres@postgres/microhaplotype"
+
 
 engine = create_async_engine(DATABASE_URL, echo=True)
+
+# Create a synchronous engine
+sync_engine = create_engine(SYNC_DATABASE_URL, echo=True)
 
 AsyncSessionLocal = sessionmaker(
     bind=engine,
@@ -83,9 +88,22 @@ AsyncSessionLocal = sessionmaker(
     autoflush=False,
 )
 
+# Configure sessionmaker for synchronous usage
+SyncSessionLocal = sessionmaker(
+    bind=sync_engine,
+    autocommit=False,
+    autoflush=False,
+)
+
 async def get_session():
     async with AsyncSessionLocal() as session:
         yield session
+def get_sync_session():
+    db = SyncSessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 async def init_db():
     async with engine.begin() as conn:

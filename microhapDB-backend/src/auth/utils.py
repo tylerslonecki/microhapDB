@@ -2,8 +2,9 @@
 
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
+import logging
 
-SECRET_KEY = "your_secret_key"
+SECRET_KEY = "your_secret_key"  # Ensure this matches the encoding key
 ALGORITHM = "HS256"
 
 def create_access_token(data: dict, expires_delta: timedelta = None):
@@ -19,6 +20,8 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
 def verify_access_token(token: str):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        logging.info(f"Token payload: {payload}")
         return payload
-    except JWTError:
+    except JWTError as e:
+        logging.error(f"JWTError: {e}")
         return None

@@ -16,6 +16,9 @@ from sqlalchemy import func
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.auth.orcid_oauth import get_current_user
+import logging
+
+logging.basicConfig(level=logging.INFO)
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -106,13 +109,18 @@ def process_upload(file_data, job_id, db_session_factory):
         db.close()
 
 
-@router.post("/upload/", dependencies=[Depends(get_current_user)])
-async def upload_microhaplotype_data(file: UploadFile = File(...),
-                                     background_tasks: BackgroundTasks = BackgroundTasks(),
-                                     db=Depends(get_sync_session)):
-    user = await get_current_user()
-    if not user.is_admin:
-        raise HTTPException(status_code=403, detail="Not enough permissions")
+@router.post("/upload/")
+async def upload_microhaplotype_data(
+    request: Request,
+    file: UploadFile = File(...),
+    background_tasks: BackgroundTasks = BackgroundTasks(),
+    db: AsyncSession = Depends(get_sync_session)
+):
+    user = await get_current_user(request, db)  # Pass request and db explicitly
+    logging.info(user)
+    # if not user.is_admin:
+    #     raise HTTPException(status_code=403, detail="Not enough permissions")
+
     job_id = str(uuid4())
     contents = await file.read()
     jobs[job_id] = {'status': 'Processing', 'submission_time': datetime.utcnow()}

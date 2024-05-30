@@ -5,17 +5,11 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="0ea7c9d8-62b7-4200-8333-3f1854176b42" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/profiles_settings.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/microhapDB.iml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/microhapDB-backend/src/auth/__init__.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/microhapDB-backend/src/auth/orcid_oauth.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/microhapDB-backend/src/aws/__init__.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/microhapDB-backend/src/aws/router.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/microhapDB-backend/templates/report_template.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/microhapDB-backend/src/auth/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/microhapDB-backend/src/auth/models.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/microhapDB-backend/src/auth/orcid_oauth.py" beforeDir="false" afterPath="$PROJECT_DIR$/microhapDB-backend/src/auth/orcid_oauth.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/microhapDB-backend/src/auth/utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/microhapDB-backend/src/auth/utils.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/microhapDB-backend/src/posts/router.py" beforeDir="false" afterPath="$PROJECT_DIR$/microhapDB-backend/src/posts/router.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -78,5 +72,27 @@
       <updated>1713965562131</updated>
     </task>
     <servers />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/microhapDB-backend/src/auth/utils.py</url>
+          <line>2</line>
+          <option name="timeStamp" value="3" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
   </component>
 </project>
