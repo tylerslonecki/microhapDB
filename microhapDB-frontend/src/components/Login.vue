@@ -1,6 +1,6 @@
 <template>
     <div>
-      <button @click="login">Login with ORCID</button>
+      <button @click="login" class="styled-button">Login with ORCID</button>
     </div>
   </template>
   
@@ -37,3 +37,23 @@
   }
   </script>
   
+  <style>
+  .styled-button {
+    border: none;
+    padding: 10px 20px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background-color 0.3s ease;
+    background-color: #00796b; /* Aesthetic green color */
+    color: white;
+  }
+  
+  .styled-button:hover {
+    background-color: #00796b8e; /* A darker shade for hover state */
+  }
+  
+  .styled-button:active {
+    transform: scale(0.97); /* Scales button down when clicked */
+  }
+  </style>

@@ -2,7 +2,8 @@
     <div class="report-container">
       <h2>Database Report</h2>
       <button @click="fetchReport" class="refresh-button">Refresh Report</button>
-      <div v-if="report" v-html="report" class="report-content"></div>
+      <div v-if="loading" class="loading-message">Loading report...</div>
+      <div v-else-if="report" v-html="report" class="report-content"></div>
       <p v-else>No report available.</p>
     </div>
   </template>
@@ -15,22 +16,24 @@
     data() {
       return {
         report: '',
+        loading: true, // Add loading state
       };
     },
     mounted() {
       this.fetchReport(); // Fetch the report when the component is mounted
     },
     methods: {
-      fetchReport() {
-        axios
-          .get('https://myfastapiapp.loca.lt/posts/report')
-          .then(response => {
-            this.report = response.data;
-          })
-          .catch(error => {
-            console.error("There was an error fetching the report: ", error);
-            this.report = ''; // Clear the report in case of an error
-          });
+      async fetchReport() {
+        this.loading = true; // Set loading state to true when fetching starts
+        try {
+          const response = await axios.get('https://myfastapiapp.loca.lt/posts/report');
+          this.report = response.data;
+        } catch (error) {
+          console.error("There was an error fetching the report: ", error);
+          this.report = ''; // Clear the report in case of an error
+        } finally {
+          this.loading = false; // Set loading state to false when fetching ends
+        }
       }
     }
   }
@@ -66,6 +69,12 @@
   
   .refresh-button:active {
     transform: scale(0.97); /* Scales button down when clicked */
+  }
+  
+  .loading-message {
+    text-align: center;
+    color: #00796b;
+    margin-top: 20px;
   }
   
   .report-content {
