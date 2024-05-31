@@ -3,8 +3,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from .orcid_oauth import get_orcid_token, get_orcid_user_info, ORCID_CLIENT_ID, ORCID_REDIRECT_URI, ORCID_AUTH_URL, get_current_user
-from .models import get_session, User
-from .utils import create_access_token
+from .models import get_session, User, AllowedOrcid
+from .utils import create_access_token, verify_access_token
 from sqlalchemy.future import select
 import logging
 
@@ -29,15 +29,23 @@ async def orcid_callback(code: str, response: Response, db: AsyncSession = Depen
         user_info = await get_orcid_user_info(token_data['access_token'])
         logging.info(f"User info: {user_info}")
 
+        # Combine given_name and family_name to create the full name
+        full_name = f"{user_info.get('given_name', '')} {user_info.get('family_name', '')}".strip()
+
+        # Check if the user exists in the database
         result = await db.execute(select(User).filter(User.orcid == user_info['sub']))
         user = result.scalar_one_or_none()
 
+        # Check if the ORCID is in the allowed_orcids table
+        result = await db.execute(select(AllowedOrcid).filter(AllowedOrcid.orcid == user_info['sub']))
+        allowed_orcid = result.scalar_one_or_none()
+
         if user is None:
             user = User(
-                full_name=user_info.get('name', 'Unknown User'),
+                full_name=full_name if full_name else 'Unknown User',
                 orcid=user_info['sub'],
                 is_active=True,
-                is_admin=False,  # Default to non-admin; update logic as needed
+                is_admin=allowed_orcid.is_admin if allowed_orcid else False,  # Set is_admin based on AllowedOrcid table
                 access_token=token_data['access_token'],
                 token_type=token_data['token_type'],
                 refresh_token=token_data['refresh_token'],
@@ -47,6 +55,16 @@ async def orcid_callback(code: str, response: Response, db: AsyncSession = Depen
             db.add(user)
             await db.commit()
             await db.refresh(user)
+        else:
+            # Update the user details if already exists
+            user.full_name = user_info.get('name', 'Unknown User')
+            user.access_token = token_data['access_token']
+            user.token_type = token_data['token_type']
+            user.refresh_token = token_data['refresh_token']
+            user.expires_in = token_data['expires_in']
+            user.scope = token_data['scope']
+            user.is_admin = allowed_orcid.is_admin if allowed_orcid else False  # Update is_admin based on AllowedOrcid table
+            await db.commit()
 
         access_token = create_access_token(data={"sub": user.orcid})
         redirect_response = RedirectResponse(url="https://microhapdb.loca.lt")  # Redirect to the frontend home page
@@ -59,6 +77,40 @@ async def orcid_callback(code: str, response: Response, db: AsyncSession = Depen
     except Exception as e:
         logging.error(f"Exception: {str(e)}")
         raise HTTPException(status_code=400, detail="An error occurred during the ORCID callback")
+
+@router.get("/status")
+async def auth_status(request: Request, db: AsyncSession = Depends(get_session)):
+    token = request.cookies.get("access_token")
+    logging.info(f"Token: {token}")
+    if not token:
+        raise HTTPException(status_code=401, detail="Token not found")
+
+    payload = verify_access_token(token)
+    logging.info(f"Payload: {payload}")
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    orcid = payload.get("sub")
+    logging.info(f"Orcid: {orcid}")
+    if not orcid:
+        raise HTTPException(status_code=401, detail="Invalid token payload")
+
+    result = await db.execute(select(User).filter(User.orcid == orcid))
+    user = result.scalar_one_or_none()
+    logging.info(f"User: {user}")
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    allowed_orcid = await db.execute(select(AllowedOrcid).filter(AllowedOrcid.orcid == orcid))
+    allowed_orcid_record = allowed_orcid.scalar_one_or_none()
+
+    is_admin = allowed_orcid_record.is_admin if allowed_orcid_record else False
+
+    return {
+        "is_authenticated": True,
+        "is_admin": is_admin,
+        "full_name": user.full_name,
+    }
 
 
 @router.get("/users/me")

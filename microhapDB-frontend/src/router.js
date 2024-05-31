@@ -5,17 +5,29 @@ import JobStatus from './components/JobStatus.vue';
 import Report from './components/Report.vue';
 import Login from './components/Login.vue';
 
-function getCookie(name) {
-  const value = `; ${document.cookie}`;
-  const parts = value.split(`; ${name}=`);
-  if (parts.length === 2) return parts.pop().split(';').shift();
+
+async function checkAuthStatus() {
+  try {
+    const response = await fetch('https://myfastapiapp.loca.lt/auth/status', {
+      credentials: 'include'
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch authentication status');
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error verifying authentication status:', error);
+    return { is_authenticated: false, is_admin: false };
+  }
 }
 
 const routes = [
   { path: '/', name: 'Home', component: Home },
-  { path: '/upload', name: 'Upload', component: UploadComponent },
+  { path: '/upload', name: 'Upload', component: UploadComponent, meta: { requiresAuth: true } },
   { path: '/job-status', name: 'JobStatus', component: JobStatus, meta: { requiresAuth: true, requiresAdmin: true } },
-  { path: '/report', name: 'Report', component: Report },
+  { path: '/report', name: 'Report', component: Report, meta: { requiresAuth: true } },
   { path: '/login', name: 'Login', component: Login }
 ];
 
@@ -25,42 +37,25 @@ const router = createRouter({
 });
 
 router.beforeEach(async (to, from, next) => {
-  const token = getCookie('access_token');
-  const isAuthenticated = !!token;
-  let isAdmin = false;
+  console.log("Router guard triggered");  // Initial log to confirm guard is running
 
-  if (isAuthenticated) {
-    try {
-      const response = await fetch('https://myfastapiapp.loca.lt/auth/users/me', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
-        credentials: 'include'
-      });
-      const data = await response.json();
-      isAdmin = data.is_admin;
+  if (to.matched.some(record => record.meta.requiresAuth)) {
+    const { is_authenticated, is_admin } = await checkAuthStatus();
+    console.log("Is Authenticated:", is_authenticated); // Log authentication status
+    console.log("Is Admin:", is_admin); // Log admin status
 
-      if (to.matched.some(record => record.meta.requiresAuth)) {
-        if (!isAuthenticated) {
-          next({ name: 'Login' });
-        } else if (to.matched.some(record => record.meta.requiresAdmin) && !isAdmin) {
-          next({ name: 'Home' });
-        } else {
-          next();
-        }
-      } else {
-        next();
-      }
-    } catch (error) {
-      console.error('Error verifying admin status:', error);
+    if (!is_authenticated) {
+      console.log("Not authenticated, redirecting to Login");
       next({ name: 'Login' });
-    }
-  } else {
-    if (to.matched.some(record => record.meta.requiresAuth)) {
-      next({ name: 'Login' });
+    } else if (to.matched.some(record => record.meta.requiresAdmin) && !is_admin) {
+      console.log("Not admin, redirecting to Home");
+      next({ name: 'Home' });
     } else {
+      console.log("Authenticated and authorized, proceeding to route");
       next();
     }
+  } else {
+    next();
   }
 });
 

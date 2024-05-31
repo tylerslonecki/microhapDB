@@ -6,7 +6,7 @@
       <li><router-link to="/upload">Upload</router-link></li>
       <li><router-link to="/job-status">Job Status</router-link></li>
       <li><router-link to="/report">Database Report</router-link></li>
-      <li v-if="!isAuthenticated"><router-link to="/login">Login</router-link></li>
+      <li><router-link to="/login">Login</router-link></li>
       <li v-if="isAuthenticated"><button @click="logout">Logout</button></li>
     </ul>
   </div>

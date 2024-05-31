@@ -6,10 +6,9 @@
   <component name="ChangeListManager">
     <list default="true" id="0ea7c9d8-62b7-4200-8333-3f1854176b42" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/microhapDB-backend/src/auth/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/microhapDB-backend/src/auth/models.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/microhapDB-backend/src/auth/orcid_oauth.py" beforeDir="false" afterPath="$PROJECT_DIR$/microhapDB-backend/src/auth/orcid_oauth.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/microhapDB-backend/src/auth/utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/microhapDB-backend/src/auth/utils.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/microhapDB-backend/src/posts/router.py" beforeDir="false" afterPath="$PROJECT_DIR$/microhapDB-backend/src/posts/router.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/microhapDB-backend/src/auth/router.py" beforeDir="false" afterPath="$PROJECT_DIR$/microhapDB-backend/src/auth/router.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/microhapDB-frontend/src/components/Sidebar.vue" beforeDir="false" afterPath="$PROJECT_DIR$/microhapDB-frontend/src/components/Sidebar.vue" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/microhapDB-frontend/src/router.js" beforeDir="false" afterPath="$PROJECT_DIR$/microhapDB-frontend/src/router.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
