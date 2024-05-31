@@ -3,61 +3,34 @@
     <h2>Menu</h2>
     <ul>
       <li><router-link to="/">Home</router-link></li>
-      <li><router-link to="/upload">Upload</router-link></li>
-      <li><router-link to="/job-status">Job Status</router-link></li>
       <li><router-link to="/report">Database Report</router-link></li>
+      <li v-if="authState.isAuthenticated">
+        <span class="submenu-title">System Administration</span>
+        <ul class="submenu">
+          <li><router-link to="/upload">Upload</router-link></li>
+          <li><router-link to="/job-status">Job Status</router-link></li>
+        </ul>
+      </li>
     </ul>
   </div>
 </template>
 
 <script>
-import Cookies from 'js-cookie';
+import { authState } from '@/authState'; // Adjust the path if necessary
 
 export default {
   name: 'Sidebar',
   data() {
     return {
-      isAuthenticated: false,
-      isAdmin: false
+      authState
     };
-  },
-  methods: {
-    checkAuth() {
-      const token = Cookies.get('access_token');
-      if (token) {
-        this.isAuthenticated = true;
-        // Perform a request to the backend to check if the user is an admin
-        fetch('https://myfastapiapp.loca.lt/auth/users/me', {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        })
-          .then(response => response.json())
-          .then(data => {
-            this.isAdmin = data.is_admin;
-          })
-          .catch(error => {
-            console.error('Error fetching user info:', error);
-          });
-      }
-    },
-    logout() {
-      Cookies.remove('access_token');
-      Cookies.remove('is_admin');
-      this.isAuthenticated = false;
-      this.isAdmin = false;
-      this.$router.push('/login');
-    }
-  },
-  created() {
-    this.checkAuth();
   }
 }
 </script>
 
 <style>
 .sidebar {
-  width: 150px;
+  width: 200px; /* Fixed width for the sidebar */
   position: fixed;
   left: 0;
   top: 0;
@@ -73,7 +46,7 @@ export default {
 .sidebar h2 {
   color: #c0d3da;
   margin-bottom: 20px;
-  font-size: 24px;
+  font-size: 18px;
 }
 
 .sidebar ul {
@@ -99,5 +72,29 @@ export default {
 .sidebar ul li a:hover {
   background-color: #00796b;
   color: #ffffff;
+}
+
+.submenu-title {
+  color: #c0d3da;
+  font-size: 18px;
+  display: block;
+  padding: 10px;
+  border-radius: 4px;
+  text-align: center;
+  margin-top: 40px; /* Add margin before the System Administration menu */
+}
+
+.submenu {
+  list-style-type: none;
+  padding: 0;
+  margin: 0 0 0 20px;
+}
+
+.submenu li {
+  margin-bottom: 10px;
+}
+
+.submenu li a {
+  font-size: 16px; /* Slightly smaller font size for submenu items */
 }
 </style>

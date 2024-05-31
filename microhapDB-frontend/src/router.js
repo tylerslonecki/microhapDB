@@ -4,7 +4,7 @@ import UploadComponent from './components/FileUpload.vue';
 import JobStatus from './components/JobStatus.vue';
 import Report from './components/Report.vue';
 import Login from './components/Login.vue';
-
+import { authState } from './authState'; // Import the global auth state
 
 async function checkAuthStatus() {
   try {
@@ -43,6 +43,9 @@ router.beforeEach(async (to, from, next) => {
     const { is_authenticated, is_admin } = await checkAuthStatus();
     console.log("Is Authenticated:", is_authenticated); // Log authentication status
     console.log("Is Admin:", is_admin); // Log admin status
+
+    authState.isAuthenticated = is_authenticated;
+    authState.isAdmin = is_admin;
 
     if (!is_authenticated) {
       console.log("Not authenticated, redirecting to Login");
