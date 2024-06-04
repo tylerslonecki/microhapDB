@@ -6,7 +6,7 @@
         <option disabled value="">Please select one</option>
         <option value="alfalfa">Alfalfa</option>
         <option value="cranberry">Cranberry</option>
-        <option value="bluberry">Blueberry</option>
+        <option value="blueberry">Blueberry</option>
         <option value="sweetpotato">Sweetpotato</option>
       </select>
     </div>
@@ -40,7 +40,7 @@ export default {
       });
 
       // Append the selected pipeline to FormData if needed
-      fd.append("pipeline", selectedPipeline.value);
+      fd.append("species", selectedPipeline.value);
 
       try {
         console.log('Submitting data...');

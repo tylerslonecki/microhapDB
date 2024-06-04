@@ -1,14 +1,13 @@
-from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, Boolean, DateTime, BigInteger, Text, \
-    UniqueConstraint
+from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, Boolean, DateTime, BigInteger, Text
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
 from sqlalchemy.sql import func, text
+from sqlalchemy import event
 import uuid
 
 Base = declarative_base()
-
 
 class User(Base):
     __tablename__ = "users"
@@ -23,24 +22,19 @@ class User(Base):
     expires_in = Column(BigInteger)
     scope = Column(String)
 
-
 class AllowedOrcid(Base):
     __tablename__ = "allowed_orcids"
     orcid = Column(String, primary_key=True, index=True)
     is_admin = Column(Boolean, default=False)
 
-
 class Sequence(Base):
     __tablename__ = 'sequence_table'
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    hapID = Column(UUID(as_uuid=True), index=True, default=uuid.uuid4)
-    alleleID = Column(String)
-    alleleSequence = Column(Text)
-    species = Column(String, primary_key=True, index=True)
+    hapid = Column(UUID(as_uuid=True), unique=True, index=True, default=uuid.uuid4)
+    alleleid = Column(String)
+    allelesequence = Column(Text)
+    species = Column(String, index=True)
     logs = relationship("SequenceLog", back_populates="sequence")
-
-    __table_args__ = (UniqueConstraint('hapID', 'species', name='uq_hapid_species'),)
-
 
 class UploadBatch(Base):
     __tablename__ = 'upload_batches'
@@ -48,17 +42,15 @@ class UploadBatch(Base):
     created_at = Column(DateTime, default=func.now())
     sequences = relationship("SequenceLog", back_populates="batch")
 
-
 class SequenceLog(Base):
     __tablename__ = 'sequence_log'
     id = Column(Integer, primary_key=True)
-    hapID = Column(UUID(as_uuid=True), ForeignKey('sequence_table.hapID'))
+    hapid = Column(UUID(as_uuid=True), ForeignKey('sequence_table.hapid'))
     batch_id = Column(Integer, ForeignKey('upload_batches.id'))
     was_new = Column(Boolean, default=True)
-    species = Column(String, primary_key=True, index=True)
+    species = Column(String, index=True)
     sequence = relationship("Sequence", back_populates="logs")
     batch = relationship("UploadBatch", back_populates="sequences")
-
 
 # Configuration for the database URL
 DATABASE_URL = "postgresql+asyncpg://postgres_user:bipostgres@postgres/microhaplotype"
@@ -84,11 +76,9 @@ SyncSessionLocal = sessionmaker(
     autoflush=False,
 )
 
-
 async def get_session():
     async with AsyncSessionLocal() as session:
         yield session
-
 
 def get_sync_session():
     db = SyncSessionLocal()
@@ -97,48 +87,42 @@ def get_sync_session():
     finally:
         db.close()
 
-
 # Function to initialize the database and create partitions
 async def init_db():
     async with engine.begin() as conn:
-        # First create all standard tables
         await conn.run_sync(Base.metadata.create_all)
-
-        # Then create partitioned tables
+        # Create partitioned table and partitions
         await conn.execute(text('''
             CREATE TABLE IF NOT EXISTS sequence_table (
-                id UUID,
-                hapID UUID,
-                alleleID TEXT,
-                alleleSequence TEXT,
-                species TEXT,
-                PRIMARY KEY (id, species),
-                UNIQUE (hapID, species)
+                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                hapid UUID UNIQUE,
+                alleleid TEXT,
+                allelesequence TEXT,
+                species TEXT
             ) PARTITION BY LIST (species);
         '''))
         await conn.execute(text('''
             CREATE TABLE IF NOT EXISTS sequence_log (
-                id SERIAL,
-                hapID UUID,
-                batch_id INTEGER,
+                id SERIAL PRIMARY KEY,
+                hapid UUID REFERENCES sequence_table(hapid),
+                batch_id INTEGER REFERENCES upload_batches(id),
                 was_new BOOLEAN DEFAULT TRUE,
-                species TEXT,
-                PRIMARY KEY (id, species),
-                FOREIGN KEY (hapID, species) REFERENCES sequence_table(hapID, species)
+                species TEXT
             ) PARTITION BY LIST (species);
         '''))
 
-        # Create partitions
-        partition_commands = [
-            "CREATE TABLE IF NOT EXISTS sequence_table_sweetpotato PARTITION OF sequence_table FOR VALUES IN ('sweetpotato');",
-            "CREATE TABLE IF NOT EXISTS sequence_table_blueberry PARTITION OF sequence_table FOR VALUES IN ('blueberry');",
-            "CREATE TABLE IF NOT EXISTS sequence_table_alfalfa PARTITION OF sequence_table FOR VALUES IN ('alfalfa');",
-            "CREATE TABLE IF NOT EXISTS sequence_table_cranberry PARTITION OF sequence_table FOR VALUES IN ('cranberry');",
-            "CREATE TABLE IF NOT EXISTS sequence_log_sweetpotato PARTITION OF sequence_log FOR VALUES IN ('sweetpotato');",
-            "CREATE TABLE IF NOT EXISTS sequence_log_blueberry PARTITION OF sequence_log FOR VALUES IN ('blueberry');",
-            "CREATE TABLE IF NOT EXISTS sequence_log_alfalfa PARTITION OF sequence_log FOR VALUES IN ('alfalfa');",
-            "CREATE TABLE IF NOT EXISTS sequence_log_cranberry PARTITION OF sequence_log FOR VALUES IN ('cranberry');"
-        ]
-        for command in partition_commands:
-            await conn.execute(text(command))
-
+# Use SQLAlchemy event listener to create partitions after the base table is created
+@event.listens_for(Base.metadata, 'after_create')
+def create_partitions(target, connection, **kw):
+    partition_commands = [
+        "CREATE TABLE IF NOT EXISTS sequence_table_sweetpotato PARTITION OF sequence_table FOR VALUES IN ('sweetpotato');",
+        "CREATE TABLE IF NOT EXISTS sequence_table_blueberry PARTITION OF sequence_table FOR VALUES IN ('blueberry');",
+        "CREATE TABLE IF NOT EXISTS sequence_table_alfalfa PARTITION OF sequence_table FOR VALUES IN ('alfalfa');",
+        "CREATE TABLE IF NOT EXISTS sequence_table_cranberry PARTITION OF sequence_table FOR VALUES IN ('cranberry');",
+        "CREATE TABLE IF NOT EXISTS sequence_log_sweetpotato PARTITION OF sequence_log FOR VALUES IN ('sweetpotato');",
+        "CREATE TABLE IF NOT EXISTS sequence_log_blueberry PARTITION OF sequence_log FOR VALUES IN ('blueberry');",
+        "CREATE TABLE IF NOT EXISTS sequence_log_alfalfa PARTITION OF sequence_log FOR VALUES IN ('alfalfa');",
+        "CREATE TABLE IF NOT EXISTS sequence_log_cranberry PARTITION OF sequence_log FOR VALUES IN ('cranberry');"
+    ]
+    for command in partition_commands:
+        connection.execute(text(command))

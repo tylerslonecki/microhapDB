@@ -8,10 +8,9 @@ from matplotlib import pyplot as plt
 import base64
 from io import BytesIO
 
-async def get_total_unique_sequences(db):
-    result = await db.execute(select(func.count(Sequence.hapID.distinct())))
+async def get_total_unique_sequences(db: AsyncSession):
+    result = await db.execute(select(func.count(Sequence.hapid.distinct())))
     return result.scalar()
-
 
 async def get_new_sequences_for_batch(db: AsyncSession):
     result = await db.execute(select(UploadBatch.id).order_by(UploadBatch.id.desc()))
@@ -21,12 +20,13 @@ async def get_new_sequences_for_batch(db: AsyncSession):
         return 0
 
     result = await db.execute(
-        select(func.count(SequenceLog.hapID.distinct()))
+        select(func.count(SequenceLog.hapid.distinct()))
         .where(SequenceLog.batch_id == last_batch)
         .where(SequenceLog.was_new == True)
     )
     new_sequences_count = result.scalar()
     return new_sequences_count
+
 
 #
 # def get_new_sequences_for_batch(db, batch_id: int = None):
@@ -51,7 +51,7 @@ async def get_all_batch_summaries(db: AsyncSession):
             select(
                 UploadBatch.id.label('batch_id'),
                 UploadBatch.created_at.label('created_at'),
-                func.count(case((SequenceLog.was_new == True, SequenceLog.hapID), else_=None)).label('new_sequences')
+                func.count(case((SequenceLog.was_new == True, SequenceLog.hapid), else_=None)).label('new_sequences')
             ).outerjoin(
                 SequenceLog, UploadBatch.id == SequenceLog.batch_id
             ).group_by(
@@ -76,6 +76,7 @@ async def get_all_batch_summaries(db: AsyncSession):
     except Exception as e:
         print("Error retrieving batch summaries:", str(e))
         return []
+
 # def get_all_batch_summaries(db):
 #     try:
 #         # Adjust the query to conditionally count new sequences and order by batch_id
@@ -248,6 +249,13 @@ async def generate_line_chart(db: AsyncSession):
     summaries = await get_all_batch_summaries(db)
 
     df = pd.DataFrame(summaries)
+
+    # Print DataFrame columns to debug
+    print("DataFrame columns:", df.columns)
+
+    if 'batch_id' not in df.columns:
+        raise ValueError("The DataFrame does not contain the 'batch_id' column")
+
     df['batch_id'] = df['batch_id'].apply(lambda x: f"v{str(x).zfill(3)}")
 
     plt.figure(figsize=(10, 5))
@@ -266,6 +274,7 @@ async def generate_line_chart(db: AsyncSession):
 
     plot_base64 = base64.b64encode(plot_data).decode('utf-8')
     return plot_base64
+
 # def generate_line_chart(db):
 #     # Get batch summaries
 #     summaries = get_all_batch_summaries(db)
