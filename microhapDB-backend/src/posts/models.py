@@ -1,50 +1,17 @@
-from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, Boolean, DateTime
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship, sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.orm import sessionmaker
 from sqlalchemy.future import select
-from sqlalchemy.sql import func
-import uuid
+from sqlalchemy import create_engine
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
-
-Base = declarative_base()
-
-class Sequence(Base):
-    __tablename__ = 'sequence_table'
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    hapID = Column(UUID(as_uuid=True), unique=True, index=True, default=uuid.uuid4)  # Ensure it's indexed for better performance on joins
-    alleleID = Column(String)
-    alleleSequence = Column(String)
-    logs = relationship("SequenceLog", back_populates="sequence")
-
-class UploadBatch(Base):
-    __tablename__ = 'upload_batches'
-    id = Column(Integer, primary_key=True)
-    created_at = Column(DateTime, default=func.now())
-    sequences = relationship("SequenceLog", back_populates="batch")
-
-class SequenceLog(Base):
-    __tablename__ = 'sequence_log'
-    id = Column(Integer, primary_key=True)
-    hapID = Column(UUID(as_uuid=True), ForeignKey('sequence_table.hapID'))  # Changed to refer hapID
-    batch_id = Column(Integer, ForeignKey('upload_batches.id'))
-    was_new = Column(Boolean, default=True)
-    sequence = relationship("Sequence", back_populates="logs")
-    batch = relationship("UploadBatch", back_populates="sequences")
+from src.models import Base, Sequence, UploadBatch, SequenceLog, DATABASE_URL, SYNC_DATABASE_URL
 
 class JobStatusResponse(BaseModel):
     job_id: str
     status: str
     submission_time: datetime
     completion_time: Optional[datetime] = None
-
-# Configuration for the database URL
-DATABASE_URL = "postgresql+asyncpg://postgres_user:bipostgres@postgres/microhaplotype"
-# Configuration for the synchronous database URL
-SYNC_DATABASE_URL = "postgresql://postgres_user:bipostgres@postgres/microhaplotype"
 
 # Create an asynchronous engine
 engine = create_async_engine(DATABASE_URL, echo=True)
@@ -66,8 +33,6 @@ SyncSessionLocal = sessionmaker(
     autocommit=False,
     autoflush=False,
 )
-
-# Session = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 
 # Use this function as a dependency in your FastAPI routes
 async def get_session():

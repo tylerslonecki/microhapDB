@@ -2,13 +2,13 @@
   <div class="sidebar">
     <h2>Menu</h2>
     <ul>
-      <li><router-link to="/">Home</router-link></li>
-      <li><router-link to="/report">Database Report</router-link></li>
+      <li><router-link to="/"><i class="fas fa-home"></i> Home</router-link></li>
+      <li><router-link to="/report"><i class="fas fa-chart-bar"></i> Database Report</router-link></li>
       <li v-if="authState.isAuthenticated">
-        <span class="submenu-title">System Administration</span>
+        <span class="submenu-title"><i class="fas fa-cogs"></i> System Administration</span>
         <ul class="submenu">
-          <li><router-link to="/upload">Upload</router-link></li>
-          <li><router-link to="/job-status">Job Status</router-link></li>
+          <li><router-link to="/upload"><i class="fas fa-upload"></i> Upload</router-link></li>
+          <li><router-link to="/job-status"><i class="fas fa-tasks"></i> Job Status</router-link></li>
         </ul>
       </li>
     </ul>
@@ -29,8 +29,10 @@ export default {
 </script>
 
 <style>
+@import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css');
+
 .sidebar {
-  width: 200px; /* Fixed width for the sidebar */
+  width: 220px; /* Fixed width for the sidebar */
   position: fixed;
   left: 0;
   top: 0;
@@ -41,12 +43,16 @@ export default {
   margin-top: 70px;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   box-shadow: 2px 0 5px rgba(0,0,0,0.2);
+  transition: all 0.3s ease;
 }
 
 .sidebar h2 {
-  color: #c0d3da;
+  color: #ecf0f1;
   margin-bottom: 20px;
-  font-size: 18px;
+  font-size: 24px;
+  text-align: center;
+  border-bottom: 1px solid #34495e;
+  padding-bottom: 10px;
 }
 
 .sidebar ul {
@@ -56,38 +62,49 @@ export default {
 }
 
 .sidebar ul li {
-  margin-bottom: 10px;
+  margin-bottom: 15px;
 }
 
 .sidebar ul li a {
-  color: #c0d3da;
+  color: #ecf0f1;
   text-decoration: none;
   font-size: 18px;
-  display: block;
+  display: flex;
+  align-items: center;
   padding: 10px;
   border-radius: 4px;
   transition: background-color 0.3s ease;
 }
 
+.sidebar ul li a i {
+  margin-right: 10px;
+}
+
 .sidebar ul li a:hover {
-  background-color: #00796b;
-  color: #ffffff;
+  background-color: #34495e;
 }
 
 .submenu-title {
-  color: #c0d3da;
-  font-size: 18px;
-  display: block;
+  color: #ecf0f1;
+  font-size: 20px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
   padding: 10px;
   border-radius: 4px;
+  background-color: #1abc9c;
   text-align: center;
-  margin-top: 40px; /* Add margin before the System Administration menu */
+  margin-top: 30px; /* Add margin before the System Administration menu */
+}
+
+.submenu-title i {
+  margin-right: 10px;
 }
 
 .submenu {
   list-style-type: none;
   padding: 0;
-  margin: 0 0 0 20px;
+  margin: 10px 0 0 20px;
 }
 
 .submenu li {

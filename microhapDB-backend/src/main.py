@@ -1,12 +1,14 @@
+# src/main.py or equivalent
+
 from fastapi import FastAPI, Depends
 from fastapi.responses import RedirectResponse
 from src.auth.router import router as auth_router
 from src.aws.router import router as aws_router
 from src.posts.router import router as posts_router
-from .models import init_db, AsyncSessionLocal, AllowedOrcid
+from src.models import init_db, AsyncSessionLocal, AllowedOrcid
 from fastapi.middleware.cors import CORSMiddleware
-from .auth.dependencies import get_current_user, get_admin_user
-from .auth.models import UserResponse
+from src.auth.dependencies import get_current_user, get_admin_user
+from src.auth.models import UserResponse
 import asyncio
 from datetime import datetime, timedelta
 import time
@@ -44,6 +46,9 @@ async def startup_event():
     await init_db()
     loop = asyncio.get_event_loop()
     loop.run_in_executor(None, remove_old_jobs)
+    await initialize_allowed_orcids()
+
+async def initialize_allowed_orcids():
     async with AsyncSessionLocal() as session:
         async with session.begin():
             result = await session.execute(select(AllowedOrcid))
@@ -54,7 +59,6 @@ async def startup_event():
                     # Add other allowed ORCIDs here
                 ])
                 await session.commit()
-
 
 import os
 print("Current Working Directory:", os.getcwd())

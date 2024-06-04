@@ -4,9 +4,10 @@
       <label for="pipelineSelect" class="pipeline-label">Please select a Species Database</label>
       <select v-model="selectedPipeline" class="dropdown">
         <option disabled value="">Please select one</option>
-        <option value="cran-external-script">Sweetpotato</option>
-        <option value="pipeline2">Blueberry</option>
-        <option value="pipeline3">Alfalfa</option>
+        <option value="alfalfa">Alfalfa</option>
+        <option value="cranberry">Cranberry</option>
+        <option value="bluberry">Blueberry</option>
+        <option value="sweetpotato">Sweetpotato</option>
       </select>
     </div>
     <div class="file-upload-container">
