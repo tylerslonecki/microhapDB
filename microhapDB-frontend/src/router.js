@@ -4,6 +4,7 @@ import UploadComponent from './components/FileUpload.vue';
 import JobStatus from './components/JobStatus.vue';
 import Report from './components/Report.vue';
 import Login from './components/Login.vue';
+import SystemAdministration from './components/SystemAdministration.vue'; // Import the new combined component
 import { authState } from './authState'; // Import the global auth state
 
 async function checkAuthStatus() {
@@ -25,6 +26,7 @@ async function checkAuthStatus() {
 
 const routes = [
   { path: '/', name: 'Home', component: Home },
+  { path: '/system-administration', name: 'SystemAdministration', component: SystemAdministration, meta: { requiresAuth: true, requiresAdmin: true } }, // Add the new route
   { path: '/upload', name: 'Upload', component: UploadComponent, meta: { requiresAuth: true } },
   { path: '/job-status', name: 'JobStatus', component: JobStatus, meta: { requiresAuth: true, requiresAdmin: true } },
   { path: '/report', name: 'Report', component: Report, meta: { requiresAuth: true } },
