@@ -5,10 +5,9 @@
       <li><router-link to="/"><i class="fas fa-home"></i> Home</router-link></li>
       <li><router-link to="/report"><i class="fas fa-chart-bar"></i> Database Report</router-link></li>
       <li v-if="authState.isAuthenticated">
-        <router-link to="/system-administration">
-          <i class="fas fa-cogs"></i> System Administration
-        </router-link>
+        <router-link to="/system-administration"><i class="fas fa-cogs"></i> System Administration</router-link>
       </li>
+      <li><router-link to="/query"><i class="fas fa-search"></i> Query</router-link></li> <!-- New Query tab -->
     </ul>
   </div>
 </template>

@@ -245,25 +245,35 @@ async def generate_bar_chart(db: AsyncSession):
 #
 #     return plot_base64
 
+import matplotlib.pyplot as plt
+import pandas as pd
+from io import BytesIO
+import base64
+
+
 async def generate_line_chart(db: AsyncSession):
     summaries = await get_all_batch_summaries(db)
 
     df = pd.DataFrame(summaries)
-
-    # Print DataFrame columns to debug
-    print("DataFrame columns:", df.columns)
 
     if 'batch_id' not in df.columns:
         raise ValueError("The DataFrame does not contain the 'batch_id' column")
 
     df['batch_id'] = df['batch_id'].apply(lambda x: f"v{str(x).zfill(3)}")
 
-    plt.figure(figsize=(10, 5))
-    plt.plot(df['batch_id'], df['cumulative_sum'], marker='o')
-    plt.xlabel('Batch ID')
-    plt.ylabel('New Sequences')
-    plt.title('Number of New Sequences per Batch')
-    plt.grid(True)
+    # Create a figure with a smaller size and a higher DPI for clarity
+    fig, ax = plt.subplots(figsize=(8, 4), dpi=150)
+    ax.plot(df['batch_id'], df['cumulative_sum'], marker='o', linestyle='-', color='#00796b', linewidth=2, markersize=6)
+
+    ax.set_xlabel('Batch ID', fontsize=12, labelpad=10, color='#333')
+    ax.set_ylabel('Cumulative Number of Sequences', fontsize=12, labelpad=10, color='#333')
+    ax.set_title('Cumulative Number of New Sequences per Batch', fontsize=14, pad=15, color='#00796b')
+
+    ax.tick_params(axis='x', labelsize=10, rotation=45, colors='#333')
+    ax.tick_params(axis='y', labelsize=10, colors='#333')
+
+    ax.grid(color='gray', linestyle='--', linewidth=0.5, alpha=0.7)
+    plt.tight_layout()
 
     buffer = BytesIO()
     plt.savefig(buffer, format='png')

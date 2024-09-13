@@ -82,12 +82,12 @@ export default {
   cursor: pointer;
   font-weight: bold;
   transition: background-color 0.3s ease;
-  background-color: #1abc9c; /* Aesthetic green color */
+  background-color: #00796b; /* Aesthetic green color */
   color: white;
 }
 
 .login-button:hover {
-  background-color: #16a085; /* A darker shade for hover state */
+  background-color: #00796b8e; /* A darker shade for hover state */
 }
 
 .login-button:active {

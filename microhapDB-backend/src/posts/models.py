@@ -3,7 +3,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.future import select
 from sqlalchemy import create_engine
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 from src.models import Base, Sequence, UploadBatch, SequenceLog, DATABASE_URL, SYNC_DATABASE_URL
 
@@ -12,6 +12,27 @@ class JobStatusResponse(BaseModel):
     status: str
     submission_time: datetime
     completion_time: Optional[datetime] = None
+
+class QueryRequest(BaseModel):
+    query: str
+
+class SequenceResponse(BaseModel):
+    id: str
+    hapid: str
+    alleleid: str
+    allelesequence: str
+    species: str
+
+class PaginatedSequenceRequest(BaseModel):
+    page: int = 1
+    size: int = 50
+    filter: Optional[str] = None
+    filter_field: Optional[str] = None
+    species: Optional[str] = None
+
+class PaginatedSequenceResponse(BaseModel):
+    total: int
+    items: List[SequenceResponse]
 
 # Create an asynchronous engine
 engine = create_async_engine(DATABASE_URL, echo=True)
