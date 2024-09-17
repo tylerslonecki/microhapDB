@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from typing import Optional
-from src.models import Base, User, AllowedOrcid, DATABASE_URL, SYNC_DATABASE_URL
+from src.models import Base, User, AdminOrcid, UserToken, DATABASE_URL, SYNC_DATABASE_URL
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine

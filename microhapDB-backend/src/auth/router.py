@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from .orcid_oauth import get_orcid_token, get_orcid_user_info, ORCID_CLIENT_ID, ORCID_REDIRECT_URI, ORCID_AUTH_URL, get_current_user
-from .models import get_session, User, AllowedOrcid
+from .models import get_session, User, AdminOrcid, UserToken
 from .utils import create_access_token, verify_access_token
 from sqlalchemy.future import select
 import logging
@@ -19,6 +19,7 @@ async def login_with_orcid():
 async def orcid_callback(code: str, response: Response, db: AsyncSession = Depends(get_session)):
     logging.info(f"Received code: {code}")
     try:
+        # Fetch ORCID token data
         token_data = await get_orcid_token(code)
         logging.info(f"Token data: {token_data}")
 
@@ -26,48 +27,60 @@ async def orcid_callback(code: str, response: Response, db: AsyncSession = Depen
             logging.error("Access token missing in token data")
             raise HTTPException(status_code=400, detail="Access token missing in token data")
 
+        # Fetch user info using ORCID access token
         user_info = await get_orcid_user_info(token_data['access_token'])
         logging.info(f"User info: {user_info}")
 
         # Combine given_name and family_name to create the full name
         full_name = f"{user_info.get('given_name', '')} {user_info.get('family_name', '')}".strip()
 
-        # Check if the user exists in the database
+        # Check if the user already exists in the database
         result = await db.execute(select(User).filter(User.orcid == user_info['sub']))
         user = result.scalar_one_or_none()
 
-        # Check if the ORCID is in the allowed_orcids table
-        result = await db.execute(select(AllowedOrcid).filter(AllowedOrcid.orcid == user_info['sub']))
-        allowed_orcid = result.scalar_one_or_none()
+        # Check for admin status via the AdminOrcid table
+        result = await db.execute(select(AdminOrcid).filter(AdminOrcid.orcid == user_info['sub']))
+        admin_orcid = result.scalar_one_or_none()
 
         if user is None:
+            # If user doesn't exist, create a new user
             user = User(
                 full_name=full_name if full_name else 'Unknown User',
                 orcid=user_info['sub'],
-                is_active=True,
-                is_admin=allowed_orcid.is_admin if allowed_orcid else False,  # Set is_admin based on AllowedOrcid table
+                is_active=True
+            )
+            db.add(user)
+            await db.commit()
+            await db.refresh(user)
+
+        # Handle token storage in UserToken table
+        token_result = await db.execute(select(UserToken).filter(UserToken.user_id == user.id))
+        user_token = token_result.scalar_one_or_none()
+
+        if user_token is None:
+            # Create a new token if none exists for the user
+            user_token = UserToken(
+                user_id=user.id,
                 access_token=token_data['access_token'],
                 token_type=token_data['token_type'],
                 refresh_token=token_data['refresh_token'],
                 expires_in=token_data['expires_in'],
                 scope=token_data['scope']
             )
-            db.add(user)
-            await db.commit()
-            await db.refresh(user)
+            db.add(user_token)
         else:
-            # Update the user details if already exists
-            user.full_name = user_info.get('name', 'Unknown User')
-            user.access_token = token_data['access_token']
-            user.token_type = token_data['token_type']
-            user.refresh_token = token_data['refresh_token']
-            user.expires_in = token_data['expires_in']
-            user.scope = token_data['scope']
-            user.is_admin = allowed_orcid.is_admin if allowed_orcid else False  # Update is_admin based on AllowedOrcid table
-            await db.commit()
+            # Update token if it already exists
+            user_token.access_token = token_data['access_token']
+            user_token.token_type = token_data['token_type']
+            user_token.refresh_token = token_data['refresh_token']
+            user_token.expires_in = token_data['expires_in']
+            user_token.scope = token_data['scope']
 
+        await db.commit()
+
+        # Create access token for frontend authentication
         access_token = create_access_token(data={"sub": user.orcid})
-        redirect_response = RedirectResponse(url="https://microhapdb.loca.lt")  # Redirect to the frontend home page
+        redirect_response = RedirectResponse(url="https://microhapdb.loca.lt")
         redirect_response.set_cookie(key="access_token", value=access_token, httponly=True, secure=True, samesite="None")
         return redirect_response
 
@@ -101,10 +114,14 @@ async def auth_status(request: Request, db: AsyncSession = Depends(get_session))
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
 
-    allowed_orcid = await db.execute(select(AllowedOrcid).filter(AllowedOrcid.orcid == orcid))
-    allowed_orcid_record = allowed_orcid.scalar_one_or_none()
+    # admin_orcid = await db.execute(select(AdminOrcid).filter(AdminOrcid.orcid == orcid))
+    # admin_orcid_record = admin_orcid.scalar_one_or_none()
+    #
+    # is_admin = admin_orcid_record.is_admin if admin_orcid_record else False
+    admin_orcid = await db.execute(select(AdminOrcid).filter(AdminOrcid.orcid == orcid))
+    admin_orcid_record = admin_orcid.scalar_one_or_none()
+    is_admin = admin_orcid_record is not None  # Check if an AdminOrcid record exists
 
-    is_admin = allowed_orcid_record.is_admin if allowed_orcid_record else False
 
     return {
         "is_authenticated": True,

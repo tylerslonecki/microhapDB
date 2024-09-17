@@ -58,50 +58,86 @@ async def generate_report(request: Request, db=Depends(get_session)):
         db.close()
 
 
+from sqlalchemy.orm import Session
+
 def process_upload(file_data, job_id, db_session_factory, species):
     db = db_session_factory()
     try:
         df = pd.read_csv(io.StringIO(file_data.decode('utf-8')), header=None, low_memory=False)
-
         batch = UploadBatch()
         db.add(batch)
-        db.commit()
+        db.flush()  # Get batch.id without committing
 
-        # Insert the 'hapid' column at the correct position (second column, after the first)
+        # Ensure 'hapid' column exists
         if 'hapid' not in df.columns:
-            df.insert(0, 'hapid', '*')  # Initialize with '*'
+            df.insert(0, 'hapid', '*')
             df.iloc[7, 0] = "hapid"
 
-        # Process rows starting from the 8th (index 7 in zero-indexed Python)
-        for index in range(8, len(df)):
-            alleleid = df.iloc[index, 1]  # Assuming alleleid is in the first column
-            allelesequence = df.iloc[index, 3]  # Assuming allelesequence is in the third column
+        # Begin transaction
+        with db.begin():
+            for index in range(8, len(df)):
+                alleleid = df.iloc[index, 1]
+                allelesequence = df.iloc[index, 3]
 
-            # Check for existing sequence
-            existing = db.query(Sequence).filter_by(allelesequence=allelesequence, species=species).first()
-
-            if not existing:
-                # Add new microhaplotype if not exists
-                new_hap = Sequence(
-                    alleleid=alleleid,
+                # Check for existing sequence
+                existing = db.query(Sequence).filter_by(
                     allelesequence=allelesequence,
                     species=species
+                ).first()
+
+                try:
+                    if not existing:
+                        new_hap = Sequence(
+                            alleleid=alleleid,
+                            allelesequence=allelesequence,
+                            species=species
+                        )
+                        db.add(new_hap)
+                        db.flush()  # Flush to get hapid
+                        hapid = new_hap.hapid
+                        was_new = True
+                    else:
+                        hapid = existing.hapid
+                        was_new = False
+                except IntegrityError:
+                    db.rollback()
+                    # Sequence was inserted by another transaction
+                    existing = db.query(Sequence).filter_by(
+                        allelesequence=allelesequence,
+                        species=species
+                    ).first()
+                    hapid = existing.hapid
+                    was_new = False
+
+                # Log the sequence
+                log_entry = SequenceLog(
+                    hapid=hapid,
+                    batch_id=batch.id,
+                    was_new=was_new,
+                    species=species
                 )
-                db.add(new_hap)
-                db.commit()
-                was_new = True
-                hapid = new_hap.hapid
-                # print(f"Added new microhaplotype: {allelesequence}")
+                db.add(log_entry)
 
-            else:
-                hapid = existing.hapid
-                was_new = False
-                # print(f"Sequence already exists: {allelesequence}")
+                # Update SequencePresence
+                presence_entry = db.query(SequencePresence).filter_by(
+                    project_id=project_id,
+                    hapid=hapid
+                ).first()
 
-            log_entry = SequenceLog(hapid=hapid, batch_id=batch.id, was_new=was_new, species=species)
-            db.add(log_entry)
-            db.commit()
-            df.at[index, 'hapid'] = hapid  # Append hapid to column data
+                if not presence_entry:
+                    # Add new presence record
+                    presence_entry = SequencePresence(
+                        project_id=project_id,
+                        hapid=hapid,
+                        presence=True
+                    )
+                    db.add(presence_entry)
+
+                # Update DataFrame
+                df.at[index, 'hapid'] = hapid
+
+        # Commit transaction
+        db.commit()
 
         # Convert DataFrame back to CSV
         output_stream = io.StringIO()
@@ -117,6 +153,7 @@ def process_upload(file_data, job_id, db_session_factory, species):
         print(f"Error processing job {job_id}: {str(e)}")
     finally:
         db.close()
+
 
 @router.post("/upload/")
 async def upload_microhaplotype_data(

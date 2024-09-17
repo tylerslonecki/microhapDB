@@ -5,7 +5,7 @@ from fastapi.responses import RedirectResponse
 from src.auth.router import router as auth_router
 from src.aws.router import router as aws_router
 from src.posts.router import router as posts_router
-from src.models import init_db, AsyncSessionLocal, AllowedOrcid
+from src.models import init_db, AsyncSessionLocal, AdminOrcid
 from fastapi.middleware.cors import CORSMiddleware
 from src.auth.dependencies import get_current_user, get_admin_user
 from src.auth.models import UserResponse
@@ -46,17 +46,17 @@ async def startup_event():
     await init_db()
     loop = asyncio.get_event_loop()
     loop.run_in_executor(None, remove_old_jobs)
-    await initialize_allowed_orcids()
+    await initialize_admin_orcids()
 
-async def initialize_allowed_orcids():
+async def initialize_admin_orcids():
     async with AsyncSessionLocal() as session:
         async with session.begin():
-            result = await session.execute(select(AllowedOrcid))
-            allowed_orcids = result.scalars().all()
-            if not allowed_orcids:
+            result = await session.execute(select(AdminOrcid))
+            admin_orcids = result.scalars().all()
+            if not admin_orcids:
                 session.add_all([
-                    AllowedOrcid(orcid='0000-0002-4762-3518', is_admin=True),
-                    # Add other allowed ORCIDs here
+                    AdminOrcid(orcid='0000-0002-4762-3518'),
+                    # Add other admin ORCIDs here
                 ])
                 await session.commit()
 
