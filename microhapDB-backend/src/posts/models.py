@@ -5,7 +5,7 @@ from sqlalchemy import create_engine
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
-from src.models import Base, Sequence, UploadBatch, SequenceLog, DATABASE_URL, SYNC_DATABASE_URL
+from src.models import Base, Sequence, UploadBatch, SequenceLog, Project, SequencePresence, DATABASE_URL, SYNC_DATABASE_URL
 
 class JobStatusResponse(BaseModel):
     job_id: str
@@ -17,7 +17,6 @@ class QueryRequest(BaseModel):
     query: str
 
 class SequenceResponse(BaseModel):
-    id: str
     hapid: str
     alleleid: str
     allelesequence: str

@@ -75,6 +75,8 @@ class Sequence(Base):
 class UploadBatch(Base):
     __tablename__ = 'upload_batches'
     id = Column(Integer, primary_key=True)
+    species = Column(String, nullable=False)
+    version = Column(Integer, nullable=False)
     created_at = Column(DateTime, default=func.now())
     uploaded_by = Column(Integer, ForeignKey('users.id'))
     project_id = Column(Integer, ForeignKey('projects.id'), nullable=False)
@@ -82,6 +84,10 @@ class UploadBatch(Base):
     sequences = relationship("SequenceLog", back_populates="batch")
     user = relationship("User")
     project = relationship("Project", back_populates="upload_batches")
+
+    __table_args__ = (
+        UniqueConstraint('species', 'version', name='uix_species_version'),
+    )
 
 
 class SequenceLog(Base):
@@ -111,6 +117,7 @@ class SequenceLog(Base):
         ),
         back_populates="logs"
     )
+
 
 class SequencePresence(Base):
     __tablename__ = 'sequence_presence'

@@ -1,6 +1,6 @@
 # src/auth/router.py
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from .orcid_oauth import get_orcid_token, get_orcid_user_info, ORCID_CLIENT_ID, ORCID_REDIRECT_URI, ORCID_AUTH_URL, get_current_user
 from .models import get_session, User, AdminOrcid, UserToken
@@ -10,9 +10,17 @@ import logging
 
 router = APIRouter()
 
+# src/auth/router.py
 @router.get("/login")
 async def login_with_orcid():
-    return RedirectResponse(f"{ORCID_AUTH_URL}?client_id={ORCID_CLIENT_ID}&response_type=code&scope=/authenticate&redirect_uri={ORCID_REDIRECT_URI}")
+    login_url = (
+        f"{ORCID_AUTH_URL}?client_id={ORCID_CLIENT_ID}"
+        f"&response_type=code"
+        f"&scope=/authenticate"
+        f"&redirect_uri={ORCID_REDIRECT_URI}"
+        f"&prompt=login"
+    )
+    return RedirectResponse(login_url)
 
 
 @router.get("/callback")
@@ -83,6 +91,7 @@ async def orcid_callback(code: str, response: Response, db: AsyncSession = Depen
         redirect_response = RedirectResponse(url="https://microhapdb.loca.lt")
         redirect_response.set_cookie(key="access_token", value=access_token, httponly=True, secure=True, samesite="None")
         return redirect_response
+        #return {"access_token": access_token}
 
     except HTTPException as e:
         logging.error(f"HTTPException: {e.detail}")
@@ -91,6 +100,7 @@ async def orcid_callback(code: str, response: Response, db: AsyncSession = Depen
         logging.error(f"Exception: {str(e)}")
         raise HTTPException(status_code=400, detail="An error occurred during the ORCID callback")
 
+# auth_routes.py
 @router.get("/status")
 async def auth_status(request: Request, db: AsyncSession = Depends(get_session)):
     token = request.cookies.get("access_token")
@@ -114,20 +124,23 @@ async def auth_status(request: Request, db: AsyncSession = Depends(get_session))
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # admin_orcid = await db.execute(select(AdminOrcid).filter(AdminOrcid.orcid == orcid))
-    # admin_orcid_record = admin_orcid.scalar_one_or_none()
-    #
-    # is_admin = admin_orcid_record.is_admin if admin_orcid_record else False
     admin_orcid = await db.execute(select(AdminOrcid).filter(AdminOrcid.orcid == orcid))
     admin_orcid_record = admin_orcid.scalar_one_or_none()
-    is_admin = admin_orcid_record is not None  # Check if an AdminOrcid record exists
-
+    is_admin = admin_orcid_record is not None
 
     return {
         "is_authenticated": True,
         "is_admin": is_admin,
-        "full_name": user.full_name,
+        "username": user.full_name,  # Ensure this returns the username
     }
+
+
+@router.post("/logout")
+async def logout():
+    response = JSONResponse(content={"message": "Logged out successfully"})
+    response.delete_cookie(key="access_token")
+    return response
+
 
 
 @router.get("/users/me")

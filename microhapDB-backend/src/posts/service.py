@@ -1,31 +1,51 @@
+from collections import Counter
+
 from sqlalchemy import func, case
 from sqlalchemy.future import select
-from .models import Sequence, SequenceLog, UploadBatch
+from .models import Sequence, SequenceLog, UploadBatch, SequencePresence, Project
 from sqlalchemy.ext.asyncio import AsyncSession
 import pandas as pd
-from upsetplot import plot
+from upsetplot import from_memberships, UpSet
 from matplotlib import pyplot as plt
 import base64
 from io import BytesIO
 
-async def get_total_unique_sequences(db: AsyncSession):
-    result = await db.execute(select(func.count(Sequence.hapid.distinct())))
+async def get_total_unique_sequences(db: AsyncSession, species: str):
+    query = select(func.count(Sequence.hapid.distinct()))
+    if species != 'all':
+        query = query.where(Sequence.species == species)
+    result = await db.execute(query)
     return result.scalar()
 
-async def get_new_sequences_for_batch(db: AsyncSession):
-    result = await db.execute(select(UploadBatch.id).order_by(UploadBatch.id.desc()))
-    last_batch = result.scalars().first()
+
+
+async def get_new_sequences_for_batch(db: AsyncSession, species: str):
+    subquery = (
+        select(UploadBatch.id)
+        .join(SequenceLog, UploadBatch.id == SequenceLog.batch_id)
+    )
+    if species != 'all':
+        subquery = subquery.where(SequenceLog.species == species)
+    subquery = subquery.order_by(UploadBatch.id.desc()).limit(1)
+
+    result = await db.execute(subquery)
+    last_batch = result.scalar()
 
     if last_batch is None:
         return 0
 
-    result = await db.execute(
+    count_query = (
         select(func.count(SequenceLog.hapid.distinct()))
         .where(SequenceLog.batch_id == last_batch)
         .where(SequenceLog.was_new == True)
     )
+    if species != 'all':
+        count_query = count_query.where(SequenceLog.species == species)
+    result = await db.execute(count_query)
     new_sequences_count = result.scalar()
     return new_sequences_count
+
+
 
 
 #
@@ -45,37 +65,88 @@ async def get_new_sequences_for_batch(db: AsyncSession):
 #         SequenceLog.was_new == True
 #     ).scalar()
 
-async def get_all_batch_summaries(db: AsyncSession):
+async def get_all_batch_summaries(db: AsyncSession, species: str):
     try:
-        result = await db.execute(
-            select(
-                UploadBatch.id.label('batch_id'),
-                UploadBatch.created_at.label('created_at'),
-                func.count(case((SequenceLog.was_new == True, SequenceLog.hapid), else_=None)).label('new_sequences')
-            ).outerjoin(
-                SequenceLog, UploadBatch.id == SequenceLog.batch_id
-            ).group_by(
-                UploadBatch.id,
-                UploadBatch.created_at
-            ).order_by(UploadBatch.id)
-        )
-        batches = result.all()
+        if species != 'all':
+            # Query batches for a single species
+            query = (
+                select(
+                    UploadBatch.version.label('version'),
+                    UploadBatch.created_at.label('created_at'),
+                    func.count(
+                        case((SequenceLog.was_new == True, SequenceLog.hapid), else_=None)
+                    ).label('new_sequences')
+                )
+                .join(SequenceLog, UploadBatch.id == SequenceLog.batch_id)
+                .where(UploadBatch.species == species)
+                .group_by(UploadBatch.version, UploadBatch.created_at)
+                .order_by(UploadBatch.version)
+            )
+            result = await db.execute(query)
+            batches = result.fetchall()
 
-        batch_summaries = [
-            {"batch_id": batch_id, "date": created_at.strftime('%Y-%m-%d %H:%M:%S'), "new_sequences": new_sequences}
-            for batch_id, created_at, new_sequences in batches
-        ]
+            batch_summaries = [
+                {
+                    "version": batch.version,
+                    "date": batch.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                    "new_sequences": batch.new_sequences
+                }
+                for batch in batches
+            ]
 
-        cumulative_sum = 0
-        for summary in batch_summaries:
-            cumulative_sum += summary["new_sequences"]
-            summary["cumulative_sum"] = cumulative_sum
+            # Calculate cumulative sum
+            cumulative_sum = 0
+            for summary in batch_summaries:
+                cumulative_sum += summary["new_sequences"]
+                summary["cumulative_sum"] = cumulative_sum
 
-        return batch_summaries
+            return batch_summaries
+
+        else:
+            # Query batches for all species
+            query = (
+                select(
+                    UploadBatch.species.label('species'),
+                    UploadBatch.version.label('version'),
+                    UploadBatch.created_at.label('created_at'),
+                    func.count(
+                        case((SequenceLog.was_new == True, SequenceLog.hapid), else_=None)
+                    ).label('new_sequences')
+                )
+                .join(SequenceLog, UploadBatch.id == SequenceLog.batch_id)
+                .group_by(UploadBatch.species, UploadBatch.version, UploadBatch.created_at)
+                .order_by(UploadBatch.species, UploadBatch.version)
+            )
+            result = await db.execute(query)
+            batches = result.fetchall()
+
+            species_data = {}
+            for batch in batches:
+                sp = batch.species
+                if sp not in species_data:
+                    species_data[sp] = []
+                species_data[sp].append({
+                    "version": batch.version,
+                    "date": batch.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                    "new_sequences": batch.new_sequences
+                })
+
+            # Calculate cumulative sums for each species
+            for sp, summaries in species_data.items():
+                cumulative_sum = 0
+                for summary in summaries:
+                    cumulative_sum += summary["new_sequences"]
+                    summary["cumulative_sum"] = cumulative_sum
+
+            return species_data
 
     except Exception as e:
         print("Error retrieving batch summaries:", str(e))
-        return []
+        return {}
+
+
+
+
 
 # def get_all_batch_summaries(db):
 #     try:
@@ -113,49 +184,56 @@ async def get_all_batch_summaries(db: AsyncSession):
 #         print("Error retrieving batch summaries:", str(e))
 #         return []
 
-async def prepare_data_for_upset_plot(db: AsyncSession):
-    result = await db.execute(select(SequenceLog.hapID, SequenceLog.batch_id))
-    data = result.all()
-    df = pd.DataFrame(data, columns=['hapID', 'batch_id'])
+async def prepare_data_for_upset_plot(db: AsyncSession, species: str):
+    query = (
+        select(SequencePresence.hapid, Project.name)
+        .join(Project, Project.id == SequencePresence.project_id)
+    )
+    if species != 'all':
+        query = query.where(SequencePresence.species == species)
+    result = await db.execute(query)
+    data = result.fetchall()
+    df = pd.DataFrame(data, columns=['hapid', 'project_name'])
 
-    df['presence'] = 1
-    df_pivot = df.pivot_table(index='hapID', columns='batch_id', values='presence', fill_value=0, aggfunc='sum').astype(bool)
-    df_pivot.columns = df_pivot.columns.map(str)
-    return df_pivot
+    # Drop duplicates to ensure each hapid-project pair is unique
+    df = df.drop_duplicates()
 
-# def prepare_data_for_upset_plot(db):
-#     # Fetch data from database
-#     data = db.query(SequenceLog.hapID, SequenceLog.batch_id).all()
-#     df = pd.DataFrame(data, columns=['hapID', 'batch_id'])
-#
-#     # Create a presence column for pivot
-#     df['presence'] = 1
-#     # Pivot to get hapIDs as index and batch_ids as columns with presence as values
-#     df_pivot = df.pivot_table(index='hapID', columns='batch_id', values='presence', fill_value=0, aggfunc='sum').astype(bool)
-#
-#     # Convert the batch_id columns to string types to comply with the UpSetPlot requirement
-#     df_pivot.columns = df_pivot.columns.map(str)
-#
-#     # # Ensure columns are in MultiIndex format
-#     # if not isinstance(df_pivot.columns, pd.MultiIndex):
-#     #     df_pivot.columns = pd.MultiIndex.from_arrays([df_pivot.columns])
-#     print(df_pivot)
-#     return df_pivot
+    # Group by hapid and collect the set of project names
+    grouped = df.groupby('hapid')['project_name'].apply(lambda x: tuple(sorted(set(x))))
 
-async def generate_upset_plot(db: AsyncSession):
-    df = await prepare_data_for_upset_plot(db)
+    # Collect the list of memberships
+    memberships = grouped.tolist()
 
-    if df.empty:
+    return memberships
+
+
+
+
+
+
+
+
+async def generate_upset_plot(db: AsyncSession, species: str):
+    memberships = await prepare_data_for_upset_plot(db, species)
+    if not memberships:
+        print("No memberships data available for upset plot.")
         return None
 
     try:
-        upset_data = from_memberships(df.itertuples(index=False, name=None), data=len(df) * [1])
-        upset = UpSet(upset_data, show_counts='%d')
+        # Use Counter to aggregate memberships
+        counter = Counter(memberships)
+        upset_data = pd.Series(counter)
+
+        # Debugging: Print the first few entries to ensure uniqueness
+        print("UpSet Data Sample:", upset_data.head())
+
+        # Create the UpSet plot with subset_size set to None
+        upset = UpSet(upset_data, show_counts='%d', subset_size=None)
         upset.plot()
-        plt.title('Upset Plot of Sequences')
+        plt.suptitle('Upset Plot of Sequences by Projects', fontsize=12, color='#00796b')
 
         buffer = BytesIO()
-        plt.savefig(buffer, format='png')
+        plt.savefig(buffer, format='png', bbox_inches='tight')
         plt.close()
         buffer.seek(0)
         image_png = buffer.getvalue()
@@ -166,35 +244,11 @@ async def generate_upset_plot(db: AsyncSession):
     except Exception as e:
         print("Failed to generate upset plot:", str(e))
         return None
-# def generate_upset_plot(db):
-#     df = prepare_data_for_upset_plot(db)
-#
-#     counts = [56, 283, 1279, 5882, 24, 90, 429, 1957]
-#     from upsetplot import from_memberships
-#     upset_data = from_memberships(df, data=counts)
-#
-#     # if df.empty or not isinstance(df.columns, pd.MultiIndex):
-#     #     print("DataFrame is not suitable for upset plotting.")
-#     #     return None
-#
-#     try:
-#         # Generate upset plot
-#         upset = plot(upset_data, show_counts='%d')
-#         plt.title('Upset Plot of Sequences')
-#
-#         # Save plot to BytesIO and convert to base64
-#         buffer = BytesIO()
-#         plt.savefig(buffer, format='png')
-#         plt.close()
-#         buffer.seek(0)
-#         image_png = buffer.getvalue()
-#         buffer.close()
-#         plot_base64 = base64.b64encode(image_png).decode('utf-8')
-#
-#         return plot_base64
-#     except Exception as e:
-#         print("Failed to generate upset plot:", str(e))
-#         return None
+
+
+
+
+
 
 async def generate_bar_chart(db: AsyncSession):
     batch_history = await get_all_batch_summaries(db)
@@ -251,39 +305,116 @@ from io import BytesIO
 import base64
 
 
-async def generate_line_chart(db: AsyncSession):
-    summaries = await get_all_batch_summaries(db)
+async def generate_line_chart(db: AsyncSession, species: str):
+    if species != 'all':
+        summaries = await get_all_batch_summaries(db, species)
+        df = pd.DataFrame(summaries)
 
-    df = pd.DataFrame(summaries)
+        if 'version' not in df.columns or df.empty:
+            return None  # No data available
 
-    if 'batch_id' not in df.columns:
-        raise ValueError("The DataFrame does not contain the 'batch_id' column")
+        df['version_label'] = df['version'].apply(lambda x: f"V{str(x).zfill(3)}")
 
-    df['batch_id'] = df['batch_id'].apply(lambda x: f"v{str(x).zfill(3)}")
+        fig, ax = plt.subplots(figsize=(6, 3), dpi=100)
+        ax.plot(df['version_label'], df['cumulative_sum'], marker='o', linestyle='-', color='#00796b', linewidth=2, markersize=4)
 
-    # Create a figure with a smaller size and a higher DPI for clarity
-    fig, ax = plt.subplots(figsize=(8, 4), dpi=150)
-    ax.plot(df['batch_id'], df['cumulative_sum'], marker='o', linestyle='-', color='#00796b', linewidth=2, markersize=6)
+        ax.set_xlabel('Version', fontsize=10, labelpad=8, color='#333')
+        ax.set_ylabel('Cumulative Sequences', fontsize=10, labelpad=8, color='#333')
+        ax.set_title(f'Cumulative Sequences per Version - {species.capitalize()}', fontsize=12, pad=10, color='#00796b')
 
-    ax.set_xlabel('Batch ID', fontsize=12, labelpad=10, color='#333')
-    ax.set_ylabel('Cumulative Number of Sequences', fontsize=12, labelpad=10, color='#333')
-    ax.set_title('Cumulative Number of New Sequences per Batch', fontsize=14, pad=15, color='#00796b')
+        ax.tick_params(axis='x', labelsize=8, rotation=45, colors='#333')
+        ax.tick_params(axis='y', labelsize=8, colors='#333')
 
-    ax.tick_params(axis='x', labelsize=10, rotation=45, colors='#333')
-    ax.tick_params(axis='y', labelsize=10, colors='#333')
+        ax.grid(color='gray', linestyle='--', linewidth=0.5, alpha=0.7)
+        plt.tight_layout()
 
-    ax.grid(color='gray', linestyle='--', linewidth=0.5, alpha=0.7)
-    plt.tight_layout()
+        buffer = BytesIO()
+        plt.savefig(buffer, format='png')
+        buffer.seek(0)
+        plot_data = buffer.getvalue()
+        buffer.close()
+        plt.close()
 
-    buffer = BytesIO()
-    plt.savefig(buffer, format='png')
-    buffer.seek(0)
-    plot_data = buffer.getvalue()
-    buffer.close()
-    plt.close()
+        plot_base64 = base64.b64encode(plot_data).decode('utf-8')
+        return plot_base64
+    else:
+        summaries = await get_all_batch_summaries(db, species)
 
-    plot_base64 = base64.b64encode(plot_data).decode('utf-8')
-    return plot_base64
+        if not summaries:
+            return None
+
+        line_charts = {}
+        for sp, data in summaries.items():
+            df = pd.DataFrame(data)
+            if 'version' not in df.columns or df.empty:
+                continue
+
+            df['version_label'] = df['version'].apply(lambda x: f"V{str(x).zfill(3)}")
+
+            fig, ax = plt.subplots(figsize=(4, 3), dpi=100)
+            ax.plot(df['version_label'], df['cumulative_sum'], marker='o', linestyle='-', color='#00796b', linewidth=2, markersize=4)
+
+            ax.set_xlabel('Version', fontsize=8, labelpad=8, color='#333')
+            ax.set_ylabel('Cumulative Sequences', fontsize=8, labelpad=8, color='#333')
+            ax.set_title(f'{sp.capitalize()}', fontsize=10, pad=10, color='#00796b')
+
+            ax.tick_params(axis='x', labelsize=6, rotation=45, colors='#333')
+            ax.tick_params(axis='y', labelsize=6, colors='#333')
+
+            ax.grid(color='gray', linestyle='--', linewidth=0.5, alpha=0.7)
+            plt.tight_layout()
+
+            buffer = BytesIO()
+            plt.savefig(buffer, format='png')
+            buffer.seek(0)
+            plot_data = buffer.getvalue()
+            buffer.close()
+            plt.close()
+
+            plot_base64 = base64.b64encode(plot_data).decode('utf-8')
+            line_charts[sp] = plot_base64
+
+        return line_charts
+
+async def generate_line_chart_data(db: AsyncSession, species: str):
+    if species != 'all':
+        summaries = await get_all_batch_summaries(db, species)
+        if not summaries:
+            return None  # No data available
+
+        df = pd.DataFrame(summaries)
+        if 'version' not in df.columns or df.empty:
+            return None  # No data available
+
+        df['version_label'] = df['version'].apply(lambda x: f"V{str(x).zfill(3)}")
+
+        chart_data = {
+            'labels': df['version_label'].tolist(),
+            'cumulative_sums': df['cumulative_sum'].tolist(),
+        }
+
+        return chart_data
+    else:
+        summaries = await get_all_batch_summaries(db, species)
+        if not summaries:
+            return None
+
+        chart_data = {}
+        for sp, data in summaries.items():
+            df = pd.DataFrame(data)
+            if 'version' not in df.columns or df.empty:
+                continue
+
+            df['version_label'] = df['version'].apply(lambda x: f"V{str(x).zfill(3)}")
+
+            chart_data[sp] = {
+                'labels': df['version_label'].tolist(),
+                'cumulative_sums': df['cumulative_sum'].tolist(),
+            }
+
+        return chart_data
+
+
 
 # def generate_line_chart(db):
 #     # Get batch summaries

@@ -6,15 +6,29 @@
         <option disabled value="">Please select one</option>
         <option value="alfalfa">Alfalfa</option>
         <option value="cranberry">Cranberry</option>
-        <option value="blueberry">Blueberry</option>
+        <!-- <option value="blueberry">Blueberry</option> -->
         <option value="sweetpotato">Sweetpotato</option>
       </select>
+    </div>
+        <!-- Project Dropdown (new) -->
+    <!-- <div class="dropdown-container">
+      <label for="projectSelect" class="project-label">Please select or add a Project</label>
+      <select v-model="selectedProject" class="dropdown">
+        <option disabled value="">Please select one</option>
+        <option v-for="project in projects" :key="project.id" :value="project.name">{{ project.name }}</option>
+        <option value="new">Add new project</option>
+      </select> -->
+
+      <!-- Input for new project name -->
+      <!-- <div v-if="selectedProject === 'new'" class="new-project-input">
+        <input type="text" v-model="newProjectName" placeholder="Enter new project name" />
+      </div>
     </div>
     <div class="file-upload-container">
       <input type="file" @change="handleFileChange" class="file-input" multiple />
       <button @click="submitData" class="upload-button">Submit Job</button>
       <p v-if="uploadMessage">{{ uploadMessage }}</p>
-    </div>
+    </div> -->
   </div>
 </template>
 
