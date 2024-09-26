@@ -5,6 +5,7 @@ from fastapi.responses import RedirectResponse
 from src.auth.router import router as auth_router
 from src.aws.router import router as aws_router
 from src.posts.router import router as posts_router
+from src.brapi.brapi_endpoints import brapi_router
 from src.models import init_db, AsyncSessionLocal, AdminOrcid
 from fastapi.middleware.cors import CORSMiddleware
 from src.auth.dependencies import get_current_user, get_admin_user
@@ -17,7 +18,7 @@ from sqlalchemy.future import select
 from src.posts.router import jobs
 
 
-app = FastAPI(title="Microhaplotype Database", version="1.0.0")
+app = FastAPI(title="Microhaplotype Database", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -30,6 +31,7 @@ app.add_middleware(
 app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
 app.include_router(aws_router, prefix="/aws", tags=["AWS Integration"])
 app.include_router(posts_router, prefix="/posts", tags=["Posts"])
+app.include_router(brapi_router, prefix="/brapi", tags=["Brapi"])
 
 def remove_old_jobs():
     while True:
@@ -65,7 +67,7 @@ print("Current Working Directory:", os.getcwd())
 
 @app.get("/")
 def read_root():
-    return {"Hello": "World"}
+    return {"Microhap Database: v0.1.0"}
 
 @app.get("/login")
 def redirect_to_login():
