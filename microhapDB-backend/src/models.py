@@ -1,4 +1,5 @@
-from sqlalchemy import create_engine, Column, Integer, String, PrimaryKeyConstraint, ForeignKeyConstraint, Identity, ForeignKey, Boolean, DateTime, BigInteger, Text, UniqueConstraint
+from sqlalchemy import create_engine, Column, Integer, String, PrimaryKeyConstraint, ForeignKeyConstraint, Identity, \
+    ForeignKey, Boolean, DateTime, BigInteger, Text, UniqueConstraint
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.declarative import declarative_base
@@ -8,6 +9,7 @@ from sqlalchemy import event
 import uuid
 
 Base = declarative_base()
+
 
 class User(Base):
     __tablename__ = "users"
@@ -25,6 +27,7 @@ class User(Base):
         """Checks if the user is an admin by verifying the presence of an AdminOrcid relationship."""
         return self.admin_orcid is not None
 
+
 class UserToken(Base):
     __tablename__ = "user_tokens"
     id = Column(Integer, primary_key=True)
@@ -37,6 +40,7 @@ class UserToken(Base):
 
     user = relationship("User", back_populates="tokens")
 
+
 class AdminOrcid(Base):
     __tablename__ = "admin_orcids"
     id = Column(Integer, primary_key=True)
@@ -44,6 +48,7 @@ class AdminOrcid(Base):
     orcid = Column(String, unique=True, nullable=False)
 
     user = relationship("User", back_populates="admin_orcid")
+
 
 class Project(Base):
     __tablename__ = 'projects'
@@ -59,7 +64,7 @@ class Project(Base):
 class Sequence(Base):
     __tablename__ = 'sequence_table'
     hapid = Column(UUID(as_uuid=True), default=uuid.uuid4)
-    alleleid = Column(String, nullable=False)
+    alleleid = Column(String, nullable=False, index=True)
     allelesequence = Column(Text, nullable=False)
     species = Column(String, nullable=False, index=True)
 
@@ -67,10 +72,12 @@ class Sequence(Base):
         PrimaryKeyConstraint('hapid', 'species'),
         UniqueConstraint('allelesequence', 'species', name='uix_allelesequence_species'),
         {'postgresql_partition_by': 'LIST (species)'},
+        
     )
 
     project_presences = relationship("SequencePresence", back_populates="sequence")
     logs = relationship("SequenceLog", back_populates="sequence")
+
 
 class UploadBatch(Base):
     __tablename__ = 'upload_batches'
@@ -145,14 +152,13 @@ class SequencePresence(Base):
     )
 
 
-
 # Configuration for the database URL
 DATABASE_URL = "postgresql+asyncpg://postgres_user:bipostgres@postgres/microhaplotype"
-SYNC_DATABASE_URL = "postgresql://postgres_user:bipostgres@postgres/microhaplotype"
+# SYNC_DATABASE_URL = "postgresql://postgres_user:bipostgres@postgres/microhaplotype"
 
 # Create an asynchronous engine
 engine = create_async_engine(DATABASE_URL, echo=True)
-sync_engine = create_engine(SYNC_DATABASE_URL, echo=True)
+# sync_engine = create_engine(SYNC_DATABASE_URL, echo=True)
 
 # Configure sessionmaker for asynchronous usage
 AsyncSessionLocal = sessionmaker(
@@ -163,28 +169,31 @@ AsyncSessionLocal = sessionmaker(
     autoflush=False,
 )
 
-# Configure sessionmaker for synchronous usage
-SyncSessionLocal = sessionmaker(
-    bind=sync_engine,
-    autocommit=False,
-    autoflush=False,
-)
+
+# # Configure sessionmaker for synchronous usage
+# SyncSessionLocal = sessionmaker(
+#     bind=sync_engine,
+#     autocommit=False,
+#     autoflush=False,
+# )
 
 async def get_session():
     async with AsyncSessionLocal() as session:
         yield session
 
-def get_sync_session():
-    db = SyncSessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+
+# def get_sync_session():
+#     db = SyncSessionLocal()
+#     try:
+#         yield db
+#     finally:
+#         db.close()
 
 # Function to initialize the database and create partitions
 async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
 
 # Use SQLAlchemy event listener to create partitions after the base table is created
 @event.listens_for(Base.metadata, 'after_create')

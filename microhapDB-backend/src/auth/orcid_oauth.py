@@ -6,7 +6,7 @@ from fastapi.security import OAuth2AuthorizationCodeBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 from sqlalchemy.future import select
-from .models import User, get_session, get_sync_session
+from .models import User, get_session
 from .utils import create_access_token, verify_access_token
 import logging
 
@@ -66,23 +66,17 @@ async def get_current_user(request: Request, db: AsyncSession = Depends(get_sess
             token = request.cookies.get("access_token")
         if token is None:
             raise credentials_exception
-        logging.info("Checkpoint_1")
-        logging.info(token)
         payload = verify_access_token(token)
         if payload is None:
             raise credentials_exception
-        logging.info("Checkpoint_2")
         orcid = payload.get("sub")
         if orcid is None:
             raise credentials_exception
-        logging.info("Checkpoint_3")
 
-        # Use synchronous session to query the user
-        sync_session = next(get_sync_session())
-        user = get_user_sync(orcid, sync_session)
-        sync_session.close()
-
-        logging.info("Checkpoint_4")
+        # Use async session to query the user
+        stmt = select(User).filter(User.orcid == orcid)
+        result = await db.execute(stmt)
+        user = result.scalar_one_or_none()
         if user is None:
             raise credentials_exception
         return user

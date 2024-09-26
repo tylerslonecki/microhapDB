@@ -93,14 +93,14 @@ async def orcid_callback(code: str, response: Response, db: AsyncSession = Depen
         return redirect_response
         #return {"access_token": access_token}
 
+
     except HTTPException as e:
         logging.error(f"HTTPException: {e.detail}")
         raise
     except Exception as e:
-        logging.error(f"Exception: {str(e)}")
-        raise HTTPException(status_code=400, detail="An error occurred during the ORCID callback")
+        logging.error(f"Exception in orcid_callback: {str(e)}")
+        raise HTTPException(status_code=500, detail="An internal error occurred during the ORCID callback")
 
-# auth_routes.py
 @router.get("/status")
 async def auth_status(request: Request, db: AsyncSession = Depends(get_session)):
     token = request.cookies.get("access_token")

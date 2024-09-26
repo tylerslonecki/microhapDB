@@ -1,21 +1,19 @@
-from sqlalchemy import create_engine
-from src.models import SYNC_DATABASE_URL
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from src.models import DATABASE_URL
 from sqlalchemy.orm import sessionmaker
 from src.models import Sequence
 
 
-sync_engine = create_engine(SYNC_DATABASE_URL, echo=True)
+engine = create_async_engine(DATABASE_URL, echo=True)
 
-
-# Configure sessionmaker for synchronous usage
-SyncSessionLocal = sessionmaker(
-    bind=sync_engine,
+AsyncSessionLocal = sessionmaker(
+    bind=engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
     autocommit=False,
     autoflush=False,
 )
-def get_sync_session():
-    db = SyncSessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+
+async def get_session():
+    async with AsyncSessionLocal() as session:
+        yield session

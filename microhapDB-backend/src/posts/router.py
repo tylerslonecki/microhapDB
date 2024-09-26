@@ -2,13 +2,16 @@ import uuid
 from typing import List, Dict, Optional
 from uuid import uuid4
 from pydantic import BaseModel
+import asyncio
 from fastapi import APIRouter, File, UploadFile, HTTPException, Depends, Response, Request, BackgroundTasks, Form
 from starlette.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
-from .models import Sequence, get_session, get_sync_session, UploadBatch, SequenceLog, Project, SequencePresence, JobStatusResponse, \
-    SyncSessionLocal, QueryRequest, PaginatedSequenceResponse, SequenceResponse, PaginatedSequenceRequest
+from .models import Sequence, get_session, UploadBatch, SequenceLog, Project, SequencePresence, \
+    JobStatusResponse, \
+    QueryRequest, PaginatedSequenceResponse, SequenceResponse, PaginatedSequenceRequest, \
+    AsyncSessionLocal
 from .service import get_all_batch_summaries, get_new_sequences_for_batch, get_total_unique_sequences, \
     generate_upset_plot, generate_line_chart, generate_line_chart_data
 import pandas as pd
@@ -61,107 +64,110 @@ async def generate_report(request: Request, db=Depends(get_session)):
 
 from sqlalchemy.orm import Session
 
-def get_next_version_number(db: Session, species: str) -> int:
-    max_version = db.query(func.max(UploadBatch.version)).filter(UploadBatch.species == species).scalar()
+async def get_next_version_number(db: AsyncSession, species: str) -> int:
+    stmt = select(func.max(UploadBatch.version)).where(UploadBatch.species == species)
+    result = await db.execute(stmt)
+    max_version = result.scalar()
     return (max_version or 0) + 1
 
 
-def process_upload(file_data, job_id, db_session_factory, species, project_id):
-    db = db_session_factory()
-    try:
-        df = pd.read_csv(io.StringIO(file_data.decode('utf-8')), header=None, low_memory=False)
-        version = get_next_version_number(db, species)
-        batch = UploadBatch(project_id=project_id, species=species, version=version)
-        db.add(batch)
-        db.flush()  # This starts a transaction if not already begun
 
-        # Ensure 'hapid' column exists
-        if 'hapid' not in df.columns:
-            df.insert(0, 'hapid', '*')
-            df.iloc[7, 0] = "hapid"
+async def process_upload(file_data, job_id, species, project_id):
+    async with AsyncSessionLocal() as db:
+        try:
+            df = pd.read_csv(io.StringIO(file_data.decode('utf-8')), header=None, low_memory=False)
+            version = await get_next_version_number(db, species)
+            batch = UploadBatch(project_id=project_id, species=species, version=version)
+            db.add(batch)
+            await db.flush()  # Flush to get batch.id
 
-        for index in range(8, len(df)):
-            alleleid = df.iloc[index, 1]
-            allelesequence = df.iloc[index, 3]
+            # Ensure 'hapid' column exists
+            if 'hapid' not in df.columns:
+                df.insert(0, 'hapid', '*')
+                df.iloc[7, 0] = "hapid"
 
-            # Check for existing sequence
-            existing = db.query(Sequence).filter_by(
-                allelesequence=allelesequence,
-                species=species
-            ).first()
+            for index in range(8, len(df)):
+                alleleid = df.iloc[index, 1]
+                allelesequence = df.iloc[index, 3]
 
-            try:
-                if not existing:
-                    new_hap = Sequence(
-                        alleleid=alleleid,
-                        allelesequence=allelesequence,
-                        species=species
-                    )
-                    db.add(new_hap)
-                    db.flush()  # Flush to get hapid
-                    hapid = new_hap.hapid
-                    was_new = True
-                else:
+                # Check for existing sequence
+                stmt = select(Sequence).where(
+                    Sequence.allelesequence == allelesequence,
+                    Sequence.species == species
+                )
+                result = await db.execute(stmt)
+                existing = result.scalar_one_or_none()
+
+                try:
+                    if not existing:
+                        new_hap = Sequence(
+                            alleleid=alleleid,
+                            allelesequence=allelesequence,
+                            species=species
+                        )
+                        db.add(new_hap)
+                        await db.flush()  # Flush to get hapid
+                        hapid = new_hap.hapid
+                        was_new = True
+                    else:
+                        hapid = existing.hapid
+                        was_new = False
+                except IntegrityError:
+                    await db.rollback()
+                    # Sequence was inserted by another transaction
+                    result = await db.execute(stmt)
+                    existing = result.scalar_one_or_none()
                     hapid = existing.hapid
                     was_new = False
-            except IntegrityError:
-                db.rollback()
-                # Sequence was inserted by another transaction
-                existing = db.query(Sequence).filter_by(
-                    allelesequence=allelesequence,
-                    species=species
-                ).first()
-                hapid = existing.hapid
-                was_new = False
 
-            # Log the sequence
-            log_entry = SequenceLog(
-                hapid=hapid,
-                batch_id=batch.id,
-                was_new=was_new,
-                species=species,
-                alleleid=alleleid,
-                allelesequence=allelesequence
-            )
-            db.add(log_entry)
-
-            # Update SequencePresence
-            presence_entry = db.query(SequencePresence).filter_by(
-                project_id=project_id,
-                hapid=hapid,
-                species=species  # Ensure species is included
-            ).first()
-
-            if not presence_entry:
-                # Add new presence record
-                presence_entry = SequencePresence(
-                    project_id=project_id,
+                # Log the sequence
+                log_entry = SequenceLog(
                     hapid=hapid,
-                    presence=True,
-                    species=species
+                    batch_id=batch.id,
+                    was_new=was_new,
+                    species=species,
+                    alleleid=alleleid,
+                    allelesequence=allelesequence
                 )
-                db.add(presence_entry)
+                db.add(log_entry)
 
-            # Update DataFrame
-            df.at[index, 'hapid'] = hapid
+                # Update SequencePresence
+                presence_stmt = select(SequencePresence).where(
+                    SequencePresence.project_id == project_id,
+                    SequencePresence.hapid == hapid,
+                    SequencePresence.species == species
+                )
+                result = await db.execute(presence_stmt)
+                presence_entry = result.scalar_one_or_none()
 
-        # Commit transaction after all operations
-        db.commit()
+                if not presence_entry:
+                    # Add new presence record
+                    presence_entry = SequencePresence(
+                        project_id=project_id,
+                        hapid=hapid,
+                        presence=True,
+                        species=species
+                    )
+                    db.add(presence_entry)
 
-        # Convert DataFrame back to CSV
-        output_stream = io.StringIO()
-        df.to_csv(output_stream, index=False, header=False)
-        output_stream.seek(0)
-        output_csv = output_stream.getvalue().encode('utf-8')
-        jobs[job_id]['file'] = output_stream.getvalue()
-        jobs[job_id]['status'] = 'Completed'
-        jobs[job_id]['completion_time'] = datetime.utcnow()
-    except Exception as e:
-        db.rollback()
-        jobs[job_id]['status'] = 'Failed'
-        print(f"Error processing job {job_id}: {str(e)}")
-    finally:
-        db.close()
+                # Update DataFrame
+                df.at[index, 'hapid'] = hapid
+
+            # Commit transaction after all operations
+            await db.commit()
+
+            # Convert DataFrame back to CSV
+            output_stream = io.StringIO()
+            df.to_csv(output_stream, index=False, header=False)
+            output_stream.seek(0)
+            output_csv = output_stream.getvalue().encode('utf-8')
+            jobs[job_id]['file'] = output_stream.getvalue()
+            jobs[job_id]['status'] = 'Completed'
+            jobs[job_id]['completion_time'] = datetime.utcnow()
+        except Exception as e:
+            await db.rollback()
+            jobs[job_id]['status'] = 'Failed'
+            print(f"Error processing job {job_id}: {str(e)}")
 
 
 
@@ -171,18 +177,19 @@ async def upload_microhaplotype_data(
         request: Request,
         file: UploadFile = File(...),
         species: str = Form(...),
-        project_name: str = Form(...),  # Add project name to form data
+        project_name: str = Form(...),
         background_tasks: BackgroundTasks = BackgroundTasks(),
-        db: Session = Depends(get_sync_session)
+        db: AsyncSession = Depends(get_session)
 ):
     # Get or create project based on the provided project_name
-    existing_project = db.execute(select(Project).filter(Project.name == project_name)).scalar_one_or_none()
+    result = await db.execute(select(Project).filter(Project.name == project_name))
+    existing_project = result.scalar_one_or_none()
 
     if not existing_project:
         new_project = Project(name=project_name)
         db.add(new_project)
-        db.commit()
-        db.refresh(new_project)
+        await db.commit()
+        await db.refresh(new_project)
         project_id = new_project.id
     else:
         project_id = existing_project.id
@@ -192,10 +199,10 @@ async def upload_microhaplotype_data(
     jobs[job_id] = {'status': 'Processing', 'submission_time': datetime.utcnow()}
 
     # Add project_id to the background task
-    background_tasks.add_task(process_upload, file_data=contents, job_id=job_id, db_session_factory=SyncSessionLocal,
-                              species=species, project_id=project_id)
-
+    asyncio.create_task(process_upload(file_data=contents, job_id=job_id,
+                                       species=species, project_id=project_id))
     return {"message": "Processing started. Check job status."}
+
 
 
 @router.get("/report_data")
@@ -251,13 +258,14 @@ async def check_new_data_since_last_report(db: AsyncSession, last_report_time: d
     return latest_batch_time > last_report_time if last_report_time and latest_batch_time else True
 
 @router.post("/query")
-async def execute_query(request: QueryRequest, db: Session = Depends(get_sync_session)):
-    query = request.query
-    if not is_safe_query(query):
+async def execute_query(request: QueryRequest, db: AsyncSession = Depends(get_session)):
+    query_str = request.query
+    if not is_safe_query(query_str):
         raise HTTPException(status_code=400, detail="Only SELECT queries are allowed")
     try:
-        result = db.execute(query).fetchall()
-        return {"result": [dict(row) for row in result]}
+        result = await db.execute(text(query_str))
+        rows = result.fetchall()
+        return {"result": [dict(row) for row in rows]}
     except SQLAlchemyError as e:
         raise HTTPException(status_code=400, detail=f"Query execution failed: {str(e)}")
     except Exception as e:
@@ -265,29 +273,31 @@ async def execute_query(request: QueryRequest, db: Session = Depends(get_sync_se
 
 
 @router.post("/sequences", response_model=PaginatedSequenceResponse)
-async def get_sequences(request: PaginatedSequenceRequest, db: Session = Depends(get_sync_session)):
-    query = db.query(Sequence)
+async def get_sequences(request: PaginatedSequenceRequest, db: AsyncSession = Depends(get_session)):
+    query = select(Sequence)
 
     # Filter by species if provided
     if request.species:
-        query = query.filter(Sequence.species == request.species)
+        query = query.where(Sequence.species == request.species)
 
     # Apply filter based on filter_field
     if request.filter and request.filter_field:
         if request.filter_field == 'hapid':
             try:
-                # Ensure the filter is treated as a UUID and apply an exact match
                 uuid.UUID(request.filter)
-                query = query.filter(Sequence.hapid == request.filter)
+                query = query.where(Sequence.hapid == request.filter)
             except ValueError:
                 raise HTTPException(status_code=400, detail="Invalid UUID format for hapid")
         elif request.filter_field == 'alleleid':
-            query = query.filter(Sequence.alleleid.ilike(f"%{request.filter}%"))
+            query = query.where(Sequence.alleleid.ilike(f"%{request.filter}%"))
         elif request.filter_field == 'allelesequence':
-            query = query.filter(Sequence.allelesequence.ilike(f"%{request.filter}%"))
+            query = query.where(Sequence.allelesequence.ilike(f"%{request.filter}%"))
 
-    total = query.count()
-    sequences = query.offset((request.page - 1) * request.size).limit(request.size).all()
+    total_result = await db.execute(select(func.count()).select_from(query.subquery()))
+    total = total_result.scalar()
+
+    result = await db.execute(query.offset((request.page - 1) * request.size).limit(request.size))
+    sequences = result.scalars().all()
 
     return PaginatedSequenceResponse(
         total=total,
@@ -298,6 +308,7 @@ async def get_sequences(request: PaginatedSequenceRequest, db: Session = Depends
             species=seq.species
         ) for seq in sequences]
     )
+
 
 
 @router.post("/sequences/alignment")

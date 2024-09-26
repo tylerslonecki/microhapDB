@@ -33,7 +33,7 @@ app.include_router(aws_router, prefix="/aws", tags=["AWS Integration"])
 app.include_router(posts_router, prefix="/posts", tags=["Posts"])
 app.include_router(brapi_router, prefix="/brapi", tags=["Brapi"])
 
-def remove_old_jobs():
+async def remove_old_jobs():
     while True:
         now = datetime.utcnow()
         for job_id in list(jobs.keys()):
@@ -41,13 +41,12 @@ def remove_old_jobs():
             if job['status'] == 'completed' and 'completion_time' in job:
                 if now - job['completion_time'] > timedelta(minutes=30):  # Keep jobs for 30 minutes after completion
                     del jobs[job_id]
-        time.sleep(60)  # Run cleanup every 60 seconds
+        await asyncio.sleep(60)  # Run cleanup every 60 seconds
 
 @app.on_event("startup")
 async def startup_event():
     await init_db()
-    loop = asyncio.get_event_loop()
-    loop.run_in_executor(None, remove_old_jobs)
+    asyncio.create_task(remove_old_jobs())
     await initialize_admin_orcids()
 
 async def initialize_admin_orcids():
