@@ -1,4 +1,4 @@
-# image-analysis-frontend
+
 
 ## Project setup
 ```
