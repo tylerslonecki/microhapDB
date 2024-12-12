@@ -1,16 +1,18 @@
-<!-- Login.vue -->
 <template>
-  <div>
+  <div class="p-d-flex p-jc-center p-ai-center p-flex-column" style="height:100vh;">
     <button @click="login" class="styled-button">Login with ORCID</button>
   </div>
 </template>
 
 <script>
-import { authState } from '../authState'; // Adjust the path as necessary
+import { mapActions } from 'vuex';
 
 export default {
   methods: {
+    ...mapActions(['checkAuthStatus']),
+
     login() {
+      // Direct the user to the backend's login endpoint
       window.location.href = 'https://myfastapiapp.loca.lt/auth/login';
     },
     async handleCallback() {
@@ -19,25 +21,19 @@ export default {
 
       if (code) {
         try {
+          // Exchange code for token at callback endpoint
           const response = await fetch(`https://myfastapiapp.loca.lt/auth/callback?code=${code}`, {
-            credentials: 'include'
+            credentials: 'include' // Include cookies
           });
+
           if (!response.ok) {
             throw new Error('Failed to fetch token');
           }
 
-          // Fetch the authentication status
-          const authStatusResponse = await fetch('https://myfastapiapp.loca.lt/auth/status', {
-            credentials: 'include'
-          });
-          const authStatus = await authStatusResponse.json();
+          // Once the token cookie is set by the backend, check auth status
+          await this.checkAuthStatus();
 
-          // Update authState
-          authState.isAuthenticated = authStatus.is_authenticated;
-          authState.isAdmin = authStatus.is_admin;
-          authState.username = authStatus.username;  // Update username
-
-          // Redirect to home page or any other page after successful login
+          // Redirect to home page after successful authentication
           this.$router.push('/');
         } catch (error) {
           console.error('Error during ORCID callback:', error);
@@ -46,10 +42,12 @@ export default {
     }
   },
   created() {
+    // If user returned from ORCID with a code, handle it
     this.handleCallback();
   }
-}
+};
 </script>
+
 
 <style>
 .styled-button {

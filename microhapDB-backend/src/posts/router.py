@@ -11,14 +11,14 @@ from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from .models import Sequence, get_session, UploadBatch, SequenceLog, Project, SequencePresence, \
     JobStatusResponse, \
     QueryRequest, PaginatedSequenceResponse, SequenceResponse, PaginatedSequenceRequest, \
-    AsyncSessionLocal
+    AsyncSessionLocal, ColumnFilter
 from .service import get_all_batch_summaries, get_new_sequences_for_batch, get_total_unique_sequences, \
     generate_upset_plot, generate_line_chart, generate_line_chart_data
 import pandas as pd
 import io
 import os
 from datetime import datetime, timedelta
-from sqlalchemy import func, text
+from sqlalchemy import func, text, or_
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.auth.orcid_oauth import get_current_user
@@ -273,41 +273,70 @@ async def execute_query(request: QueryRequest, db: AsyncSession = Depends(get_se
 
 
 @router.post("/sequences", response_model=PaginatedSequenceResponse)
-async def get_sequences(request: PaginatedSequenceRequest, db: AsyncSession = Depends(get_session)):
+async def get_sequences(
+    request: PaginatedSequenceRequest,
+    db: AsyncSession = Depends(get_session)
+):
+    if request.page < 1:
+        raise HTTPException(status_code=400, detail="Page number must be >= 1")
+
     query = select(Sequence)
 
     # Filter by species if provided
     if request.species:
         query = query.where(Sequence.species == request.species)
 
-    # Apply filter based on filter_field
-    if request.filter and request.filter_field:
-        if request.filter_field == 'hapid':
-            try:
-                uuid.UUID(request.filter)
-                query = query.where(Sequence.hapid == request.filter)
-            except ValueError:
-                raise HTTPException(status_code=400, detail="Invalid UUID format for hapid")
-        elif request.filter_field == 'alleleid':
-            query = query.where(Sequence.alleleid.ilike(f"%{request.filter}%"))
-        elif request.filter_field == 'allelesequence':
-            query = query.where(Sequence.allelesequence.ilike(f"%{request.filter}%"))
+    # Apply global filter if provided
+    if request.globalFilter:
+        global_search = f"%{request.globalFilter}%"
+        query = query.where(
+            or_(
+                Sequence.hapid.ilike(global_search),
+                Sequence.alleleid.ilike(global_search),
+                Sequence.allelesequence.ilike(global_search),
+                Sequence.species.ilike(global_search)
+            )
+        )
 
+    # Apply column-specific filters
+    if request.filters:
+        for field, filter_obj in request.filters.items():
+            if filter_obj.value:
+                if field == 'hapid':
+                    try:
+                        uuid.UUID(filter_obj.value)
+                        query = query.where(Sequence.hapid == filter_obj.value)
+                    except ValueError:
+                        raise HTTPException(status_code=400, detail="Invalid UUID format for hapid")
+                elif field == 'alleleid':
+                    query = query.where(Sequence.alleleid.ilike(f"%{filter_obj.value}%"))
+                elif field == 'allelesequence':
+                    query = query.where(Sequence.allelesequence.ilike(f"%{filter_obj.value}%"))
+                # Add more fields here as needed
+
+    # Calculate total records
     total_result = await db.execute(select(func.count()).select_from(query.subquery()))
     total = total_result.scalar()
 
-    result = await db.execute(query.offset((request.page - 1) * request.size).limit(request.size))
+    # Apply pagination
+    result = await db.execute(
+        query.offset((request.page - 1) * request.size).limit(request.size)
+    )
     sequences = result.scalars().all()
 
+    # Prepare response
     return PaginatedSequenceResponse(
         total=total,
-        items=[SequenceResponse(
-            hapid=str(seq.hapid),
-            alleleid=seq.alleleid,
-            allelesequence=seq.allelesequence,
-            species=seq.species
-        ) for seq in sequences]
+        items=[
+            SequenceResponse(
+                hapid=str(seq.hapid),
+                alleleid=seq.alleleid,
+                allelesequence=seq.allelesequence,
+                species=seq.species
+            ) for seq in sequences
+        ]
     )
+
 
 
 

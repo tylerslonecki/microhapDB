@@ -66,16 +66,16 @@
 <script>
 import { ref, onMounted, onBeforeUnmount } from 'vue';
 import axiosInstance from '../axiosConfig';
-import { authState } from '../authState';
+import { mapGetters, mapActions } from 'vuex';
 
 export default {
   computed: {
-    isAuthenticated() {
-      return authState.isAuthenticated;
-    },
-    isAdmin() {
-      return authState.isAdmin;
-    }
+    ...mapGetters(['isAuthenticated', 'isAdmin']),
+    // Other computed properties if any
+  },
+  methods: {
+    ...mapActions(['checkAuthStatus', 'logout']),
+    // Other methods if any
   },
   setup() {
     const selectedFiles = ref([]);

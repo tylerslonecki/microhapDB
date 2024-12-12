@@ -22,7 +22,9 @@ app = FastAPI(title="Microhaplotype Database", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://microhapdb.loca.lt"],  # Frontend domain
+    allow_origins=["https://microhapdb.loca.lt",
+                   "http://localhost:8081",
+                   "http://localhost:8080"],  # Frontend domain
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -3,7 +3,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.future import select
 from sqlalchemy import create_engine
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Dict
 from datetime import datetime
 from src.models import Base, Sequence, UploadBatch, SequenceLog, Project, SequencePresence, DATABASE_URL
 
@@ -26,12 +26,16 @@ class SequenceResponse(BaseModel):
     species: str
 
 
+class ColumnFilter(BaseModel):
+    value: Optional[str] = None
+    matchMode: Optional[str] = None
+
 class PaginatedSequenceRequest(BaseModel):
     page: int = 1
     size: int = 50
-    filter: Optional[str] = None
-    filter_field: Optional[str] = None
     species: Optional[str] = None
+    globalFilter: Optional[str] = None
+    filters: Optional[Dict[str, ColumnFilter]] = None
 
 
 class PaginatedSequenceResponse(BaseModel):

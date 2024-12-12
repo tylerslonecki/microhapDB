@@ -1,238 +1,244 @@
 <template>
   <div class="sequences-container">
-    <div class="species-filter">
-      <select v-model="species" class="species-dropdown" @change="resetFilters">
-        <option disabled value="">Select Species</option>
-        <option value="sweetpotato">Sweetpotato</option>
-        <option value="blueberry">Blueberry</option>
-        <option value="alfalfa">Alfalfa</option>
-        <option value="cranberry">Cranberry</option>
-      </select>
+    <h2 class="page-title">
+      {{ species ? (species.charAt(0).toUpperCase() + species.slice(1)) + ' Unique Microhaplotypes' : 'Unique Microhaplotypes' }}
+    </h2>
+    <div class="filter-row grid align-items-center gap-2 mb-3">
+      <div class="flex flex-column gap-1">
+        <label for="speciesDropdown" class="font-bold">Species</label>
+        <Dropdown 
+          id="speciesDropdown" 
+          v-model="species" 
+          :options="speciesOptions"
+          optionLabel="label"
+          optionValue="value"
+          placeholder="Select Species"
+          @change="onSpeciesChange" 
+        />
+      </div>
+      <!-- Add more filters here if needed -->
     </div>
-    <h2 class="page-title">{{ species ? `${species.charAt(0).toUpperCase() + species.slice(1)} Unique Microhaplotypes` : 'Unique Microhaplotypes' }}</h2>
-    <div class="filter-form">
-      <select v-model="filterField" class="filter-dropdown" @change="clearFilter">
-        <option value="">None</option>
-        <option value="hapid">Hap ID</option>
-        <option value="alleleid">Allele ID</option>
-        <option value="allelesequence">Allele Sequence</option>
-      </select>
-      <input v-model="filter" placeholder="Enter filter value" class="filter-input"/>
-      <button @click="searchSequences" class="filter-button">Search</button>
+
+    <div class="flex justify-end mb-3">
+      <IconField>
+        <InputIcon>
+          <i class="pi pi-search" />
+        </InputIcon>
+        <InputText 
+          v-model="filters.global.value" 
+          placeholder="Keyword Search" 
+          @input="onGlobalFilter" 
+        />
+      </IconField>
     </div>
-    <div v-if="species" class="pagination">
-      <button @click="prevPage" :disabled="page === 1" class="pagination-button">Previous</button>
-      <span>Page {{ page }} of {{ totalPages }} (Total sequences: {{ total }})</span>
-      <button @click="nextPage" :disabled="page * size >= total" class="pagination-button">Next</button>
-    </div>
-    <table class="sequences-table">
-      <thead>
-        <tr>
-          <th>Hap ID</th>
-          <th>Allele ID</th>
-          <th>Allele Sequence</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-if="!sequences.length">
-          <td colspan="3">No data available</td>
-        </tr>
-        <tr v-for="sequence in sequences" :key="sequence.id">
-          <td>{{ sequence.hapid }}</td>
-          <td>{{ sequence.alleleid }}</td>
-          <td>{{ sequence.allelesequence }}</td>
-        </tr>
-      </tbody>
-    </table>
-    <div v-if="species" class="pagination">
-      <button @click="prevPage" :disabled="page === 1" class="pagination-button">Previous</button>
-      <span>Page {{ page }} of {{ totalPages }} (Total sequences: {{ total }})</span>
-      <button @click="nextPage" :disabled="page * size >= total" class="pagination-button">Next</button>
+
+    <DataTable 
+      :value="sequences" 
+      :filters="filters"
+      :filterDisplay="'row'"
+      :loading="loading"
+      :paginator="true" 
+      :rows="size" 
+      :totalRecords="total"
+      :lazy="true"
+      :rowsPerPageOptions="[10, 25, 50]"
+      showGridlines 
+      stripedRows
+      @page="onPageChange"
+      @filter="onFilter"
+      tableStyle="min-width: 50rem"
+      class="datatable-gridlines mb-3" 
+      v-if="sequences.length"
+    > 
+      <template #paginatorstart>
+        <Button type="button" icon="pi pi-refresh" text @click="refreshTable" />
+      </template>
+      <template #paginatorend>
+        <Button type="button" icon="pi pi-download" text />
+      </template>
+
+      <Column 
+        field="hapid" 
+        header="Hap ID" 
+        filter 
+        filterPlaceholder="Search Hap ID"
+        :filterMatchMode="'contains'"
+      >
+        <template #filter="{ filterModel, filterCallback }">
+          <InputText 
+            v-model="filterModel.value" 
+            type="text" 
+            @input="filterCallback()" 
+            placeholder="Search Hap ID" 
+          />
+        </template>
+      </Column>
+
+      <Column 
+        field="alleleid" 
+        header="Allele ID" 
+        filter 
+        filterPlaceholder="Search Allele ID"
+        :filterMatchMode="'contains'"
+      >
+        <template #filter="{ filterModel, filterCallback }">
+          <InputText 
+            v-model="filterModel.value" 
+            type="text" 
+            @input="filterCallback()" 
+            placeholder="Search Allele ID" 
+          />
+        </template>
+      </Column>
+
+
+      <Column 
+        field="allelesequence" 
+        header="Allele Sequence" 
+        filter 
+        filterPlaceholder="Search Allele Sequence"
+        :filterMatchMode="'contains'"
+      >
+        <template #filter="{ filterModel, filterCallback }">
+          <InputText 
+            v-model="filterModel.value" 
+            type="text" 
+            @input="filterCallback()" 
+            placeholder="Search Allele Sequence" 
+          />
+        </template>
+      </Column>
+
+
+    </DataTable>
+
+    <div v-else class="text-center mt-4">
+      <p class="text-secondary">No data available</p>
     </div>
   </div>
 </template>
-  
+
 <script>
-import axiosInstance from '../axiosConfig'; // Import your axios configuration
+import axiosInstance from '../axiosConfig';
+import DataTable from 'primevue/datatable';
+import Column from 'primevue/column';
+import Dropdown from 'primevue/dropdown';
+import InputText from 'primevue/inputtext';
+import Button from 'primevue/button';
+import IconField from 'primevue/iconfield'; // Ensure these components are correctly imported
+import InputIcon from 'primevue/inputicon';
 
 export default {
+  components: {
+    DataTable,
+    Column,
+    Dropdown,
+    InputText,
+    Button,
+    IconField,
+    InputIcon
+  },
   data() {
     return {
       sequences: [],
       total: 0,
-      page: 1,
+      page: 1, // Initialize to 1 for 1-based indexing
       size: 25,
-      filter: '',
-      filterField: '',
       species: '',
+      loading: false,
+      speciesOptions: [
+        { label: 'Sweetpotato', value: 'sweetpotato' },
+        { label: 'Blueberry', value: 'blueberry' },
+        { label: 'Alfalfa', value: 'alfalfa' },
+        { label: 'Cranberry', value: 'cranberry' }
+      ],
+      filters: {
+        global: { value: null, matchMode: 'contains' },
+        hapid: { value: null, matchMode: 'contains' },
+        alleleid: { value: null, matchMode: 'contains' },
+        allelesequence: { value: null, matchMode: 'contains' }
+      }
     };
-  },
-  computed: {
-    totalPages() {
-      return Math.ceil(this.total / this.size);
-    }
   },
   methods: {
     async fetchSequences() {
       if (!this.species) {
         this.sequences = [];
         this.total = 0;
+        this.loading = false;
         return;
       }
+
+      this.loading = true;
+
+      // Prepare filters for backend
+      const activeFilters = {};
+      for (const key in this.filters) {
+        if (this.filters[key].value && key !== 'global') {
+          activeFilters[key] = {
+            value: this.filters[key].value,
+            matchMode: this.filters[key].matchMode
+          };
+        }
+      }
+
       try {
         const response = await axiosInstance.post('/posts/sequences', {
           page: this.page,
           size: this.size,
-          filter: this.filter,
-          filter_field: this.filterField,
-          species: this.species
+          species: this.species,
+          globalFilter: this.filters.global.value,
+          filters: activeFilters
         });
         this.sequences = response.data.items;
         this.total = response.data.total;
       } catch (error) {
         console.error("Error fetching sequences:", error);
+        // Optionally, set an error state to display a message to the user
+      } finally {
+        this.loading = false;
       }
     },
-    nextPage() {
-      if (this.page * this.size < this.total) {
-        this.page++;
-        this.fetchSequences();
-      }
-    },
-    prevPage() {
-      if (this.page > 1) {
-        this.page--;
-        this.fetchSequences();
-      }
-    },
-    resetFilters() {
-      this.filterField = '';
-      this.filter = '';
-      this.page = 1;
+    onPageChange(event) {
+      // PrimeVue uses zero-based indexing for pages
+      this.page = event.page + 1; // Convert to 1-based indexing
+      this.size = event.rows;
       this.fetchSequences();
     },
-    clearFilter() {
-      this.filter = '';
-      this.page = 1;
+    onFilter(event) {
+      this.filters = event.filters;
+      this.page = 1; // Reset to first page on filter change
+      this.fetchSequences();
     },
-    searchSequences() {
-      this.page = 1;
+    onSpeciesChange() {
+      this.page = 1; // Reset to first page when species changes
+      this.fetchSequences();
+    },
+    onGlobalFilter() {
+      this.page = 1; // Reset to first page on global filter change
+      this.fetchSequences();
+    },
+    refreshTable() {
       this.fetchSequences();
     }
   },
   mounted() {
     this.fetchSequences();
   }
-}
+};
 </script>
-  
+
 <style scoped>
 .sequences-container {
-  padding: 10px;
-  max-width: calc(100% - 240px); /* Adjust width considering sidebar width */
-  margin-left: 10px; /* Align with sidebar */
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
-.species-filter {
-  margin-bottom: 10px;
-  margin-left: 10px;
-}
-
 .page-title {
-  margin-left: 10px; /* Adjust margin to align with dropdown */
-  text-align: left;
-}
-
-.species-dropdown {
-  padding: 10px;
-  font-size: 16px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-}
-
-.filter-form {
-  display: flex;
-  align-items: center;
   margin-bottom: 20px;
-  margin-left: 10px; /* Adjusted for alignment */
 }
 
-.filter-input, .filter-dropdown {
-  padding: 10px;
-  font-size: 16px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  margin-right: 10px;
-}
-
-.filter-button {
-  padding: 10px 10px;
-  font-size: 16px;
-  background-color: #00796b;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background-color 0.3s ease;
-}
-
-.filter-button:hover {
-  background-color: #005f56;
-}
-
-.pagination {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  margin: 10px 0;
-  margin-left: 10px; /* Adjusted for alignment */
-}
-
-.pagination-button {
-  padding: 10px 10px;
-  font-size: 16px;
-  background-color: #00796b;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  margin: 0 10px;
-  transition: background-color 0.3s ease;
-}
-
-.pagination-button:disabled {
-  background-color: #ccc;
-  cursor: not-allowed;
-}
-
-.pagination-button:hover:enabled {
-  background-color: #005f56;
-}
-
-.sequences-table {
-  width: calc(100% - 40px); /* Adjust width considering padding */
-  margin-left: 10px; /* Adjusted for alignment */
-  border-collapse: collapse;
-  margin-top: 20px;
-}
-
-.sequences-table th, .sequences-table td {
-  padding: 12px 15px;
-  border: 1px solid #ddd;
-  text-align: left;
-}
-
-.sequences-table th {
-  background-color: #00796b;
-  color: white;
-}
-
-.sequences-table tr:nth-child(even) {
-  background-color: #f2f2f2;
-}
-
-.sequences-table tr:hover {
-  background-color: #e1f7f5;
+/* Adjust styles as needed to match your theme or preferences */
+.datatable-gridlines {
+  /* Add any specific styling if required */
 }
 </style>
