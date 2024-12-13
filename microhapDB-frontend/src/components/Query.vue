@@ -47,8 +47,8 @@
       @page="onPageChange"
       @filter="onFilter"
       tableStyle="min-width: 50rem"
-      class="datatable-gridlines mb-3" 
-      v-if="sequences.length"
+      class="datatable-gridlines mb-3"
+      :emptyMessage="'No data available. Please adjust your filters or select a species.'"
     > 
       <template #paginatorstart>
         <Button type="button" icon="pi pi-refresh" text @click="refreshTable" />
@@ -91,7 +91,6 @@
         </template>
       </Column>
 
-
       <Column 
         field="allelesequence" 
         header="Allele Sequence" 
@@ -108,13 +107,7 @@
           />
         </template>
       </Column>
-
-
     </DataTable>
-
-    <div v-else class="text-center mt-4">
-      <p class="text-secondary">No data available</p>
-    </div>
   </div>
 </template>
 
@@ -125,7 +118,7 @@ import Column from 'primevue/column';
 import Dropdown from 'primevue/dropdown';
 import InputText from 'primevue/inputtext';
 import Button from 'primevue/button';
-import IconField from 'primevue/iconfield'; // Ensure these components are correctly imported
+import IconField from 'primevue/iconfield';
 import InputIcon from 'primevue/inputicon';
 
 export default {
@@ -195,30 +188,40 @@ export default {
       } catch (error) {
         console.error("Error fetching sequences:", error);
         // Optionally, set an error state to display a message to the user
+        this.sequences = [];
+        this.total = 0;
       } finally {
         this.loading = false;
       }
     },
     onPageChange(event) {
       // PrimeVue uses zero-based indexing for pages
-      this.page = event.page + 1; // Convert to 1-based indexing
+      this.page = event.page + 1;
       this.size = event.rows;
       this.fetchSequences();
     },
     onFilter(event) {
       this.filters = event.filters;
-      this.page = 1; // Reset to first page on filter change
+      this.page = 1; 
       this.fetchSequences();
     },
     onSpeciesChange() {
-      this.page = 1; // Reset to first page when species changes
+      this.page = 1; 
       this.fetchSequences();
     },
     onGlobalFilter() {
-      this.page = 1; // Reset to first page on global filter change
+      this.page = 1;
       this.fetchSequences();
     },
     refreshTable() {
+      // Reset only the global and column-specific filters
+      this.filters.global.value = null;
+      this.filters.hapid.value = null;
+      this.filters.alleleid.value = null;
+      this.filters.allelesequence.value = null;
+
+      this.page = 1;
+
       this.fetchSequences();
     }
   },
@@ -237,7 +240,7 @@ export default {
   margin-bottom: 20px;
 }
 
-/* Adjust styles as needed to match your theme or preferences */
+
 .datatable-gridlines {
   /* Add any specific styling if required */
 }
