@@ -73,7 +73,7 @@ export default {
         {
           label: 'Admin',
           icon: 'pi pi-cog',
-          visible: this.isAuthenticated && this.isAdmin,
+          // visible: this.isAuthenticated && this.isAdmin,
           command: () => this.$router.push('/system-administration')
         },
         {

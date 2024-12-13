@@ -12,6 +12,7 @@ import Dropdown from 'primevue/dropdown';
 import DataTable from 'primevue/datatable';
 import Column from 'primevue/column';
 import Paginator from 'primevue/paginator';
+import FileUpload from 'primevue/fileupload';
 
 // PrimeVue styles
 import 'primevue/resources/themes/lara-light-green/theme.css';  
@@ -34,5 +35,7 @@ app.component('Dropdown', Dropdown);
 app.component('DataTable', DataTable);
 app.component('Column', Column);
 app.component('Paginator', Paginator);
+app.component('FileUpload', FileUpload);
+
 
 app.mount('#app');

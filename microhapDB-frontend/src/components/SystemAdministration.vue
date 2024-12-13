@@ -3,61 +3,58 @@
     <div class="upload-section">
       <div class="dropdown-container">
         <label for="pipelineSelect" class="pipeline-label">Please select a Species Database</label>
-        <select v-model="selectedPipeline" class="dropdown">
-          <option disabled value="">Please select one</option>
-          <option value="alfalfa">Alfalfa</option>
-          <option value="cranberry">Cranberry</option>
-          <option value="blueberry">Blueberry</option>
-          <option value="sweetpotato">Sweetpotato</option>
-        </select>
+        <Dropdown 
+          v-model="selectedPipeline" 
+          :options="pipelineOptions" 
+          optionLabel="label" 
+          optionValue="value" 
+          placeholder="Please select one"
+          class="w-full"
+        />
       </div>
-      <!-- Project Dropdown (new) -->
+
       <div class="dropdown-container">
         <label for="projectSelect" class="project-label">Please select or add a Project</label>
-        <select v-model="selectedProject" class="dropdown">
-          <option disabled value="">Please select one</option>
-          <option v-for="project in projects" :key="project.id" :value="project.name">{{ project.name }}</option>
-          <option value="new">Add new project</option>
-        </select>
-
-        <!-- Input for new project name -->
+        <Dropdown
+          v-model="selectedProject"
+          :options="projectOptions"
+          optionLabel="name"
+          optionValue="value"
+          placeholder="Please select one"
+          class="w-full"
+        />
         <div v-if="selectedProject === 'new'" class="new-project-input">
-          <input type="text" v-model="newProjectName" placeholder="Enter new project name" />
+          <InputText v-model="newProjectName" placeholder="Enter new project name" />
         </div>
       </div>
 
       <div class="file-upload-container">
-        <input type="file" @change="handleFileChange" class="file-input" multiple />
-        <button @click="submitData" class="upload-button">Submit Job</button>
+        <FileUpload
+          mode="basic"
+          multiple
+          chooseLabel="Choose Files"
+          @choose="handleFileChoose"
+        ></FileUpload>
+
+
+
+        <Button label="Submit Job" icon="pi pi-upload" @click="submitData" class="upload-button"/>
         <p v-if="uploadMessage">{{ uploadMessage }}</p>
       </div>
     </div>
+
     <div class="job-status-section">
       <h2>Submitted Jobs</h2>
-      <button @click="fetchJobs" class="refresh-button">Refresh Jobs</button>
+      <Button label="Refresh Jobs" icon="pi pi-refresh" @click="fetchJobs" class="refresh-button"/>
+
       <div class="table-container">
-        <table class="job-table">
-          <thead>
-            <tr>
-              <th>Job ID</th>
-              <th>Status</th>
-              <th>Submission Time</th>
-              <th>Completion Time</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="job in jobs" :key="job.job_id">
-              <td>{{ job.job_id }}</td>
-              <td>{{ job.status }}</td>
-              <td>{{ new Date(job.submission_time).toLocaleString() }}</td>
-              <td>{{ job.completion_time ? new Date(job.completion_time).toLocaleString() : 'N/A' }}</td>
-              <td>
-                <button v-if="job.status === 'completed'" @click="downloadResults(job.job_id)" class="download-button">Download</button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+        <DataTable :value="jobs" :responsiveLayout="'scroll'" class="job-table">
+          <Column field="job_id" header="Job ID"></Column>
+          <Column field="status" header="Status"></Column>
+          <Column header="Submission Time" :body="submissionTimeTemplate"></Column>
+          <Column header="Completion Time" :body="completionTimeTemplate"></Column>
+          <Column header="Actions" :body="actionsTemplate"></Column>
+        </DataTable>
       </div>
     </div>
   </div>
@@ -71,30 +68,40 @@ import { mapGetters, mapActions } from 'vuex';
 export default {
   computed: {
     ...mapGetters(['isAuthenticated', 'isAdmin']),
-    // Other computed properties if any
   },
   methods: {
     ...mapActions(['checkAuthStatus', 'logout']),
-    // Other methods if any
   },
   setup() {
     const selectedFiles = ref([]);
     const selectedPipeline = ref("");
-    const selectedProject = ref(""); // Added to return statement
-    const newProjectName = ref(""); // Added to return statement
-    const projects = ref([]); // Added to return statement
+    const selectedProject = ref("");
+    const newProjectName = ref("");
+    const projects = ref([]);
     const uploadMessage = ref(null);
     const jobs = ref([]);
     let refreshInterval = null;
 
-    const handleFileChange = (event) => {
-      selectedFiles.value = Array.from(event.target.files);
-      console.log('Selected files:', selectedFiles.value);
-    };
+    const pipelineOptions = ref([
+      { label: 'Alfalfa', value: 'alfalfa' },
+      { label: 'Cranberry', value: 'cranberry' },
+      { label: 'Blueberry', value: 'blueberry' },
+      { label: 'Sweetpotato', value: 'sweetpotato' }
+    ]);
+
+    // Dynamically build project options including a "new" option
+    const projectOptions = ref([]);
 
     const fetchProjects = async () => {
       try {
         const response = await axiosInstance.get("/posts/projects/list");
+        // Map projects from the server to dropdown options
+        // Add a "new" option at the end.
+        projectOptions.value = response.data.projects.map((proj) => ({
+          name: proj.name,
+          value: proj.name
+        }));
+        projectOptions.value.push({ name: "Add new project", value: "new" });
         projects.value = response.data.projects;
       } catch (error) {
         console.error("Error fetching projects:", error);
@@ -102,19 +109,22 @@ export default {
     };
 
     const createProject = async (projectName) => {
-    try {
-      const response = await axiosInstance.post('/posts/projects/create', { name: projectName });
-      // Refresh the projects list
-      await fetchProjects();
-      // Set the selected project to the new project
-      selectedProject.value = response.data.project.name;
-    } catch (error) {
-      console.error("Error creating project:", error);
-      uploadMessage.value = "There was an error creating the project.";
-      throw error;
-    }
-  };
+      try {
+        const response = await axiosInstance.post('/posts/projects/create', { name: projectName });
+        await fetchProjects();
+        selectedProject.value = response.data.project.name;
+      } catch (error) {
+        console.error("Error creating project:", error);
+        uploadMessage.value = "There was an error creating the project.";
+        throw error;
+      }
+    };
 
+    const handleFileSelect = (event) => {
+      // event.files is an array of files
+      selectedFiles.value = event.files;
+      console.log('Selected files:', selectedFiles.value);
+    };
 
     const submitData = async () => {
       if (!selectedPipeline.value) {
@@ -140,10 +150,9 @@ export default {
           return;
         }
         try {
-          await createProject(newProjectName.value); // Create the new project in backend
+          await createProject(newProjectName.value);
           fd.append("project_name", newProjectName.value);
         } catch (error) {
-          // Error message is already set in createProject
           return;
         }
       } else {
@@ -151,20 +160,15 @@ export default {
       }
 
       try {
-        console.log('Submitting data...');
-        console.log([...fd.entries()]);
         const response = await axiosInstance.post(
           "/posts/upload/",
           fd,
           {
-            headers: {
-              'Content-Type': 'multipart/form-data'
-            }
+            headers: { 'Content-Type': 'multipart/form-data' }
           }
         );
-        console.log('Response:', response);
         uploadMessage.value = response.data.message;
-        fetchProjects(); // Refresh projects list to include any new projects
+        fetchProjects();
       } catch (error) {
         console.error("There was an error processing the file:", error);
         uploadMessage.value = "There was an error processing the file.";
@@ -197,6 +201,28 @@ export default {
         });
     };
 
+    // Table column templates
+    const submissionTimeTemplate = (rowData) => {
+      return new Date(rowData.submission_time).toLocaleString();
+    };
+
+    const completionTimeTemplate = (rowData) => {
+      return rowData.completion_time ? new Date(rowData.completion_time).toLocaleString() : 'N/A';
+    };
+
+    const actionsTemplate = (rowData) => {
+      if (rowData.status === 'completed') {
+        return (
+          `<button class="p-button p-component" onclick='(${downloadResults.toString()})("${rowData.job_id}")'>
+             <span class="p-button-icon pi pi-download"></span>
+             <span class="p-button-label">Download</span>
+           </button>`
+        );
+      } else {
+        return '';
+      }
+    };
+
     onMounted(() => {
       fetchJobs();
       fetchProjects();
@@ -212,130 +238,72 @@ export default {
     return {
       selectedFiles,
       selectedPipeline,
-      selectedProject, // Added to return statement
-      newProjectName, // Added to return statement
-      projects, // Added to return statement
+      selectedProject,
+      newProjectName,
+      projects,
       uploadMessage,
-      handleFileChange,
+      pipelineOptions,
+      projectOptions,
+      handleFileSelect,
       submitData,
       jobs,
       fetchJobs,
-      downloadResults
+      downloadResults,
+      submissionTimeTemplate,
+      completionTimeTemplate,
+      actionsTemplate
     };
   }
 };
 </script>
 
 <style scoped>
-  .system-admin-container {
-    max-width: 1200px;
-    margin: auto;
-    padding: 20px;
-  }
-  
-  .upload-section, .job-status-section {
-    margin-bottom: 40px;
-  }
-  
-  .upload-section .dropdown-container, .upload-section .file-upload-container, .job-status-section .table-container {
-    display: flex;
-    justify-content: center;
-    margin-bottom: 20px;
-  }
-  
-  .pipeline-label, .file-input, .upload-button {
-    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-    margin: 10px;
-  }
-  
-  .pipeline-label {
-    color: #00796b;
-  }
-  
-  .dropdown, .file-input, .upload-button {
-    padding: 5px 10px;
-    border-radius: 5px;
-  }
-  
-  .dropdown, .file-input {
-    border: 1px solid #004d40;
-  }
-  
-  .upload-button {
-    border: none;
-    cursor: pointer;
-    background-color: #00796b;
-    color: white;
-    transition: background-color 0.3s ease;
-  }
-  
-  .upload-button:hover {
-    background-color: #00796b8e;
-  }
-  
-  .upload-button:active {
-    transform: scale(0.97);
-  }
-  
-  .job-status-section h2 {
-    color: #00796b; /* Aesthetic green color */
-    text-align: center;
-    margin-bottom: 30px;
-  }
-  
-  .refresh-button, .download-button {
-    border: none;
-    padding: 10px 20px;
-    border-radius: 5px;
-    cursor: pointer;
-    font-weight: bold;
-    transition: background-color 0.3s ease;
-  }
-  
-  .refresh-button {
-    background-color: #00796b; /* Aesthetic green color */
-    color: white;
-  }
-  
-  .refresh-button:hover {
-    background-color: #00796b8e; /* A darker shade for hover state */
-  }
-  
-  .refresh-button:active, .download-button:active {
-    transform: scale(0.97); /* Scales button down when clicked */
-  }
-  
-  .table-container {
-    overflow-x: auto; /* Makes table scrollable on small screens */
-  }
-  
-  .job-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 20px;
-  }
-  
-  .job-table th, .job-table td {
-    text-align: left;
-    padding: 12px;
-    border-bottom: 1px solid #ddd;
-  }
-  
-  .job-table th {
-    background-color: #00796b;
-    color: white;
-  }
-  
-  .job-table tr:nth-child(even) {
-    background-color: #f2f2f2;
-  }
-  
-  .download-button {
-    background-color: #00796b; /* Bootstrap's success green */
-    color: white;
-  }
-  
-  .download-button:hover {
-    background-color: #00796b8e; /* A darker shade for hover state */
-  }
-  </style>
+.system-admin-container {
+  max-width: 1200px;
+  margin: auto;
+  padding: 20px;
+}
+
+.upload-section, .job-status-section {
+  margin-bottom: 40px;
+}
+
+.dropdown-container, .file-upload-container, .table-container {
+  display: flex;
+  flex-direction: column;
+  align-items: start;
+  margin-bottom: 20px;
+  gap: 10px;
+}
+
+.pipeline-label, .project-label {
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  margin-bottom: 5px;
+  color: #00796b;
+}
+
+.new-project-input {
+  margin-top: 10px;
+}
+
+.upload-button {
+  margin-top: 10px;
+}
+
+.job-status-section h2 {
+  color: #00796b; 
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.refresh-button {
+  margin-bottom: 20px;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.table-container {
+  width: 100%;
+}
+</style>

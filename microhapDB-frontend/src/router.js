@@ -13,7 +13,7 @@ import store from './store';
 const routes = [
   { path: '/', name: 'Home', component: Home },
   { path: '/query', name: 'Query', component: Query },
-  { path: '/system-administration', name: 'SystemAdministration', component: SystemAdministration, meta: { requiresAuth: true, requiresAdmin: true } },
+  { path: '/system-administration', name: 'SystemAdministration', component: SystemAdministration}, //, meta: { requiresAuth: true, requiresAdmin: true } },
   { path: '/upload', name: 'Upload', component: UploadComponent, meta: { requiresAuth: true } },
   { path: '/job-status', name: 'JobStatus', component: JobStatus, meta: { requiresAuth: true, requiresAdmin: true } },
   { path: '/report', name: 'Report', component: Report, meta: { requiresAuth: true } },
