@@ -6,20 +6,16 @@
   <component name="ChangeListManager">
     <list default="true" id="0ea7c9d8-62b7-4200-8333-3f1854176b42" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/microhapDB-backend/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/microhapDB-backend/docker-compose.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/microhapDB-backend/src/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/microhapDB-backend/src/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/microhapDB-backend/src/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/microhapDB-backend/src/models.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/microhapDB-backend/src/posts/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/microhapDB-backend/src/posts/models.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/microhapDB-backend/src/posts/router.py" beforeDir="false" afterPath="$PROJECT_DIR$/microhapDB-backend/src/posts/router.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/microhapDB-frontend/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/microhapDB-frontend/package-lock.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/microhapDB-frontend/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/microhapDB-frontend/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/microhapDB-backend/src/posts/service.py" beforeDir="false" afterPath="$PROJECT_DIR$/microhapDB-backend/src/posts/service.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/microhapDB-frontend/src/App.vue" beforeDir="false" afterPath="$PROJECT_DIR$/microhapDB-frontend/src/App.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/microhapDB-frontend/src/authState.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/microhapDB-frontend/src/components/Login.vue" beforeDir="false" afterPath="$PROJECT_DIR$/microhapDB-frontend/src/components/Login.vue" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/microhapDB-frontend/src/components/Query.vue" beforeDir="false" afterPath="$PROJECT_DIR$/microhapDB-frontend/src/components/Query.vue" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/microhapDB-frontend/src/components/SystemAdministration.vue" beforeDir="false" afterPath="$PROJECT_DIR$/microhapDB-frontend/src/components/SystemAdministration.vue" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/microhapDB-frontend/src/main.js" beforeDir="false" afterPath="$PROJECT_DIR$/microhapDB-frontend/src/main.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/microhapDB-frontend/src/router.js" beforeDir="false" afterPath="$PROJECT_DIR$/microhapDB-frontend/src/router.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/microhapDB-frontend/vue.config.js" beforeDir="false" afterPath="$PROJECT_DIR$/microhapDB-frontend/vue.config.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/microhapDB-frontend/src/store/index.js" beforeDir="false" afterPath="$PROJECT_DIR$/microhapDB-frontend/src/store/index.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

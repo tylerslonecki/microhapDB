@@ -13,6 +13,8 @@ import DataTable from 'primevue/datatable';
 import Column from 'primevue/column';
 import Paginator from 'primevue/paginator';
 import FileUpload from 'primevue/fileupload';
+import ToastService from 'primevue/toastservice';
+import Toast from 'primevue/toast';
 
 // PrimeVue styles
 import 'primevue/resources/themes/lara-light-green/theme.css';  
@@ -26,6 +28,7 @@ const app = createApp(App);
 app.use(PrimeVue);
 app.use(router);
 app.use(store);
+app.use(ToastService);
 
 app.component('Menubar', Menubar);
 app.component('PanelMenu', PanelMenu);
@@ -36,6 +39,7 @@ app.component('DataTable', DataTable);
 app.component('Column', Column);
 app.component('Paginator', Paginator);
 app.component('FileUpload', FileUpload);
+app.component('Toast', Toast);
 
 
 app.mount('#app');

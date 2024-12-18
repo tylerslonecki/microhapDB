@@ -2,10 +2,10 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.future import select
 from sqlalchemy import create_engine
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, List, Dict
 from datetime import datetime
-from src.models import Base, Sequence, UploadBatch, SequenceLog, Project, SequencePresence, DATABASE_URL
+from src.models import Base, Sequence, Accession, AllelePresence, UploadBatch, SequenceLog, Program, SequencePresence, DATABASE_URL
 
 
 class JobStatusResponse(BaseModel):
@@ -13,6 +13,7 @@ class JobStatusResponse(BaseModel):
     status: str
     submission_time: datetime
     completion_time: Optional[datetime] = None
+    file_name: str = None
 
 
 class QueryRequest(BaseModel):
@@ -24,11 +25,14 @@ class SequenceResponse(BaseModel):
     alleleid: str
     allelesequence: str
     species: str
+    info: str = None
+    associated_trait: str = None
 
 
 class ColumnFilter(BaseModel):
     value: Optional[str] = None
     matchMode: Optional[str] = None
+
 
 class PaginatedSequenceRequest(BaseModel):
     page: int = 1
@@ -41,6 +45,14 @@ class PaginatedSequenceRequest(BaseModel):
 class PaginatedSequenceResponse(BaseModel):
     total: int
     items: List[SequenceResponse]
+
+
+class AccessionRequest(BaseModel):
+    alleleid: List[str] = Field(..., example=["allele1", "allele2"])
+
+class AccessionResponse(BaseModel):
+    alleleid: str
+    accessions: List[str]
 
 
 # Create an asynchronous engine

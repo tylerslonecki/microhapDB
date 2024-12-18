@@ -1,5 +1,5 @@
 from sqlalchemy import create_engine, Column, Integer, String, PrimaryKeyConstraint, ForeignKeyConstraint, Identity, \
-    ForeignKey, Boolean, DateTime, BigInteger, Text, UniqueConstraint
+    ForeignKey, Boolean, DateTime, BigInteger, Text, UniqueConstraint, Index
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.declarative import declarative_base
@@ -50,15 +50,15 @@ class AdminOrcid(Base):
     user = relationship("User", back_populates="admin_orcid")
 
 
-class Project(Base):
-    __tablename__ = 'projects'
+class Program(Base):
+    __tablename__ = 'programs'
     id = Column(Integer, primary_key=True)
     name = Column(String, unique=True, nullable=False)
     description = Column(Text)
     created_at = Column(DateTime, default=func.now())
 
-    upload_batches = relationship("UploadBatch", back_populates="project")
-    sequence_presences = relationship("SequencePresence", back_populates="project")
+    upload_batches = relationship("UploadBatch", back_populates="program")
+    sequence_presences = relationship("SequencePresence", back_populates="program")
 
 
 class Sequence(Base):
@@ -67,16 +67,19 @@ class Sequence(Base):
     alleleid = Column(String, nullable=False, index=True)
     allelesequence = Column(Text, nullable=False)
     species = Column(String, nullable=False, index=True)
+    info = Column(Text, nullable=True)
+    associated_trait = Column(Text, nullable=True)
 
     __table_args__ = (
         PrimaryKeyConstraint('hapid', 'species'),
         UniqueConstraint('allelesequence', 'species', name='uix_allelesequence_species'),
+        UniqueConstraint('alleleid', 'species', name='uix_alleleid_species'),
         {'postgresql_partition_by': 'LIST (species)'},
-        
     )
 
-    project_presences = relationship("SequencePresence", back_populates="sequence")
+    program_presences = relationship("SequencePresence", back_populates="sequence")
     logs = relationship("SequenceLog", back_populates="sequence")
+    allele_presence = relationship("AllelePresence", back_populates="allele")
 
 
 class UploadBatch(Base):
@@ -86,11 +89,11 @@ class UploadBatch(Base):
     version = Column(Integer, nullable=False)
     created_at = Column(DateTime, default=func.now())
     uploaded_by = Column(Integer, ForeignKey('users.id'))
-    project_id = Column(Integer, ForeignKey('projects.id'), nullable=False)
+    program_id = Column(Integer, ForeignKey('programs.id'), nullable=False)
 
     sequences = relationship("SequenceLog", back_populates="batch")
     user = relationship("User")
-    project = relationship("Project", back_populates="upload_batches")
+    program = relationship("Program", back_populates="upload_batches")
 
     __table_args__ = (
         UniqueConstraint('species', 'version', name='uix_species_version'),
@@ -126,15 +129,51 @@ class SequenceLog(Base):
     )
 
 
+class Accession(Base):
+    __tablename__ = "accessions"
+    accession_id = Column(Integer, primary_key=True, index=True)
+    accession_name = Column(String, unique=True, nullable=False)
+
+    # Relationships
+    allele_presence = relationship("AllelePresence", back_populates="accession")
+
+
+Index('idx_accession_name', Accession.accession_name)
+
+
+class AllelePresence(Base):
+    __tablename__ = "allele_presence"
+    alleleid = Column(String, primary_key=True)
+    species = Column(String, primary_key=True)
+    accession_id = Column(Integer, ForeignKey('accessions.accession_id'), primary_key=True)
+    # presence is implicitly True by virtue of existing in this table
+
+    __table_args__ = (
+        UniqueConstraint('alleleid', 'accession_id', name='uix_allele_presence'),
+        ForeignKeyConstraint(
+            ['alleleid', 'species'],
+            ['sequence_table.alleleid', 'sequence_table.species']
+        )
+    )
+
+    allele = relationship("Sequence", back_populates="allele_presence")
+    accession = relationship("Accession", back_populates="allele_presence")
+
+
+Index('idx_alleleid', AllelePresence.alleleid)
+Index('idx_accession_id', AllelePresence.accession_id)
+
+
+
 class SequencePresence(Base):
     __tablename__ = 'sequence_presence'
-    project_id = Column(Integer, ForeignKey('projects.id'), primary_key=True)
+    program_id = Column(Integer, ForeignKey('programs.id'), primary_key=True)
     hapid = Column(UUID(as_uuid=True), nullable=False)
     species = Column(String, nullable=False)
     presence = Column(Boolean, nullable=False, default=True)
 
     __table_args__ = (
-        PrimaryKeyConstraint('project_id', 'hapid', 'species'),
+        PrimaryKeyConstraint('program_id', 'hapid', 'species'),
         ForeignKeyConstraint(
             ['hapid', 'species'],
             ['sequence_table.hapid', 'sequence_table.species'],
@@ -142,13 +181,13 @@ class SequencePresence(Base):
         ),
     )
 
-    project = relationship("Project", back_populates="sequence_presences")
+    program = relationship("Program", back_populates="sequence_presences")
     sequence = relationship(
         "Sequence",
         primaryjoin=(
             "and_(SequencePresence.hapid == Sequence.hapid, SequencePresence.species == Sequence.species)"
         ),
-        back_populates="project_presences"
+        back_populates="program_presences"
     )
 
 

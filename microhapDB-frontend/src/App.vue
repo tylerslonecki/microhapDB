@@ -2,14 +2,16 @@
   <div id="app" class="flex flex-column" style="height: 100vh;">
     <Menubar :model="menuItems" class="custom-menubar" />
     <div class="layout-container flex flex-row flex-nowrap">
-      <aside class="sidebar d-flex flex-column p-2" style="width: 220px;">
-        <div class="sidebar-header text-center mb-3">
-          <img src="@/assets/logo.png" alt="Logo" class="sidebar-logo" />
-          <h3 class="sidebar-title">MicrohapDB</h3>
+      <aside class="sidebar d-flex flex-column py-4 px-3" style="width: 240px;">
+        <div class="sidebar-header text-center mb-4">
+          <img src="@/assets/BreedingInsightLogo-RGB-1600px.png" alt="Logo" class="sidebar-logo mb-2" />
+          <h3 class="sidebar-title mb-0">HaploSearch</h3>
         </div>
-        <PanelMenu :model="sidebarItems" class="mt-2" />
+        <div class="sidebar-menu-container mt-3">
+          <PanelMenu :model="sidebarItems" class="custom-panelmenu" />
+        </div>
       </aside>
-      <main class="content-container p-3 flex-1 overflow-auto">
+      <main class="content-container p-4 flex-1 overflow-auto">
         <router-view></router-view>
       </main>
     </div>
@@ -73,7 +75,6 @@ export default {
         {
           label: 'Admin',
           icon: 'pi pi-cog',
-          // visible: this.isAuthenticated && this.isAdmin,
           command: () => this.$router.push('/system-administration')
         },
         {
@@ -101,10 +102,9 @@ export default {
 
 /* Sidebar styling */
 .sidebar {
-  width: 220px;
-  /* background: linear-gradient(135deg, #3a4644, #536160); */
-  /* color: #ffffff; */
-  /* box-shadow: 2px 0 5px rgba(0,0,0,0.2); */
+  width: 240px;
+  background: #f8f9fa;
+  border-right: 1px solid #dee2e6;
 }
 
 .sidebar-header {
@@ -114,36 +114,53 @@ export default {
 }
 
 .sidebar-logo {
-  max-width: 80px;
-  margin-bottom: 10px;
+  max-width: 100px;
+  margin-bottom: 0.5rem;
 }
 
 .sidebar-title {
-  /* color: #ffffff; */
-  font-size: 1.2em;
+  font-size: 1.25em;
   font-weight: 600;
+  margin: 0;
+  color: #333;
+}
+
+.sidebar-menu-container {
+  flex: 1;
+}
+
+/* PanelMenu styling */
+.custom-panelmenu .p-panelmenu .p-panelmenu-header .p-panelmenu-header-link {
+  padding: 0.75rem 1rem;
+  font-size: 14px;
+}
+
+.custom-panelmenu .p-panelmenu .p-panelmenu-content .p-panelmenu-root-submenu > .p-panelmenu-item .p-panelmenu-submenu-list > .p-panelmenu-submenu-item {
+  padding: 0.5rem 1.5rem;
+  font-size: 14px;
+}
+
+.custom-panelmenu .p-panelmenu .p-panelmenu-content .p-panelmenu-header .p-panelmenu-icon {
+  margin-right: 0.5rem;
 }
 
 /* Menubar styling */
 .custom-menubar {
   border-radius: 0;
-  background: #2c3532;
   border-bottom: 2px solid #3a4644;
   color: #ffffff;
 }
 
 /* Content styling */
 .content-container {
-  /* background: #f5f6f7; */
-  padding: 1rem; /* Adjust padding as needed */
-  /* Removed flex properties to allow full-width content */
+  background: #ffffff;
+  padding: 1rem; 
 }
 
 /* Improve typography */
 body {
   font-family: 'Inter', sans-serif;
   font-size: 14px;
-  /* background: #f5f6f7; */
-  /* color: #333; */
+  color: #333;
 }
 </style>

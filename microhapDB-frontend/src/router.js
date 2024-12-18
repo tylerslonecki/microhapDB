@@ -1,3 +1,4 @@
+// src/router/index.js
 import { createRouter, createWebHistory } from 'vue-router';
 import Home from './components/Home.vue';
 import UploadComponent from './components/FileUpload.vue';
@@ -6,6 +7,7 @@ import Report from './components/Report.vue';
 import Login from './components/Login.vue';
 import SystemAdministration from './components/SystemAdministration.vue';
 import Query from './components/Query.vue';
+import Details from '@/components/Details.vue';
 // import Alignment from './components/Alignment.vue';
 
 import store from './store';
@@ -13,11 +15,36 @@ import store from './store';
 const routes = [
   { path: '/', name: 'Home', component: Home },
   { path: '/query', name: 'Query', component: Query },
-  { path: '/system-administration', name: 'SystemAdministration', component: SystemAdministration}, //, meta: { requiresAuth: true, requiresAdmin: true } },
-  { path: '/upload', name: 'Upload', component: UploadComponent, meta: { requiresAuth: true } },
-  { path: '/job-status', name: 'JobStatus', component: JobStatus, meta: { requiresAuth: true, requiresAdmin: true } },
-  { path: '/report', name: 'Report', component: Report, meta: { requiresAuth: true } },
-  { path: '/login', name: 'Login', component: Login }
+  { 
+    path: '/system-administration', 
+    name: 'SystemAdministration', 
+    component: SystemAdministration,
+    // meta: { requiresAuth: true, requiresAdmin: true }
+  },
+  { 
+    path: '/upload', 
+    name: 'Upload', 
+    component: UploadComponent, 
+    meta: { requiresAuth: true } 
+  },
+  { 
+    path: '/job-status', 
+    name: 'JobStatus', 
+    component: JobStatus, 
+    meta: { requiresAuth: true, requiresAdmin: true } 
+  },
+  { 
+    path: '/report', 
+    name: 'Report', 
+    component: Report, 
+    meta: { requiresAuth: true } 
+  },
+  { path: '/login', name: 'Login', component: Login },
+  { 
+    path: '/details', 
+    name: 'Details', 
+    component: Details
+  }
   // { path: '/alignment', name: 'Alignment', component: Alignment }
 ];
 

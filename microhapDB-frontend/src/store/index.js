@@ -1,10 +1,12 @@
+// src/store/index.js
 import { createStore } from 'vuex';
 
 export default createStore({
   state: {
     isAuthenticated: false,
     isAdmin: false,
-    username: null
+    username: null,
+    selectedSequences: []
   },
   mutations: {
     setAuthState(state, { isAuthenticated, isAdmin, username }) {
@@ -16,6 +18,9 @@ export default createStore({
       state.isAuthenticated = false;
       state.isAdmin = false;
       state.username = null;
+    },
+    setSelectedSequences(state, sequences) { // Correct placement
+      state.selectedSequences = sequences;
     }
   },
   actions: {
@@ -55,11 +60,15 @@ export default createStore({
       } catch (error) {
         console.error('Error during logout:', error);
       }
+    },
+    updateSelectedSequences({ commit }, sequences) {
+      commit('setSelectedSequences', sequences);
     }
   },
   getters: {
     isAuthenticated: state => state.isAuthenticated,
     isAdmin: state => state.isAdmin,
-    username: state => state.username
+    username: state => state.username,
+    getSelectedSequences: (state) => state.selectedSequences
   }
 });

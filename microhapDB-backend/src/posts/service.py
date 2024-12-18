@@ -2,7 +2,7 @@ from collections import Counter
 
 from sqlalchemy import func, case
 from sqlalchemy.future import select
-from .models import Sequence, SequenceLog, UploadBatch, SequencePresence, Project
+from .models import Sequence, SequenceLog, UploadBatch, SequencePresence, Program
 from sqlalchemy.ext.asyncio import AsyncSession
 import pandas as pd
 from upsetplot import from_memberships, UpSet

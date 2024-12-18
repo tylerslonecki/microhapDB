@@ -1,71 +1,223 @@
 <template>
   <div class="system-admin-container">
-    <div class="upload-section">
-      <div class="dropdown-container">
-        <label for="pipelineSelect" class="pipeline-label">Please select a Species Database</label>
-        <Dropdown 
-          v-model="selectedPipeline" 
-          :options="pipelineOptions" 
-          optionLabel="label" 
-          optionValue="value" 
-          placeholder="Please select one"
-          class="w-full"
-        />
-      </div>
+    <TabView>
+      <!-- Standard Upload Tab -->
+      <TabPanel header="Standard Upload">
+        <div class="upload-section">
+          <!-- Species Database Dropdown -->
+          <div class="dropdown-container">
+            <label for="pipelineSelect" class="pipeline-label">Please select a Species Database</label>
+            <Dropdown 
+              id="pipelineSelect"
+              v-model="selectedPipeline" 
+              :options="pipelineOptions" 
+              optionLabel="label" 
+              optionValue="value" 
+              placeholder="Please select one"
+              class="w-full"
+            />
+          </div>
 
-      <div class="dropdown-container">
-        <label for="projectSelect" class="project-label">Please select or add a Project</label>
-        <Dropdown
-          v-model="selectedProject"
-          :options="projectOptions"
-          optionLabel="name"
-          optionValue="value"
-          placeholder="Please select one"
-          class="w-full"
-        />
-        <div v-if="selectedProject === 'new'" class="new-project-input">
-          <InputText v-model="newProjectName" placeholder="Enter new project name" />
+          <!-- Program Dropdown -->
+          <div class="dropdown-container">
+            <label for="programSelect" class="program-label">Please select or add Program</label>
+            <Dropdown
+              id="programSelect"
+              v-model="selectedProgram"
+              :options="programOptions"
+              optionLabel="name"
+              optionValue="value"
+              placeholder="Please select one"
+              class="w-full"
+              @change="handleProgramChange"
+            />
+            <!-- New Program Input -->
+            <div v-if="selectedProgram === 'new'" class="new-program-input">
+              <InputText v-model="newProgramName" placeholder="Enter new program name" />
+              <Button 
+                label="Create Program" 
+                icon="pi pi-plus" 
+                @click="submitNewProgram"
+                class="mt-2"
+              />
+            </div>
+          </div>
+
+          <!-- File Upload Section -->
+          <div class="file-upload-container">
+            <FileUpload
+              mode="basic"
+              chooseLabel="Choose Files"
+              @select="handleFileSelect"
+              :customUpload="true"
+              :auto="false"
+              :multiple="true"
+            />
+            <Button 
+              label="Submit Job" 
+              icon="pi pi-upload" 
+              @click="submitData" 
+              class="upload-button"
+            />
+            <p v-if="uploadMessage">{{ uploadMessage }}</p>
+          </div>
         </div>
-      </div>
 
-      <div class="file-upload-container">
-        <FileUpload
-          mode="basic"
-          multiple
-          chooseLabel="Choose Files"
-          @choose="handleFileChoose"
-        ></FileUpload>
+        <!-- Job Status Table for Standard Uploads -->
+        <div class="job-status-section">
+          <h2>Standard Upload Job Status</h2>
+          <div class="table-container">
+            <DataTable :value="jobsStandard" :responsiveLayout="'scroll'">
+              <Column field="file_name" header="File">
+                <template #body="slotProps">
+                  <span>{{ slotProps.data.file_name }}</span>
+                </template>
+              </Column>
+              <Column field="status" header="Status">
+                <template #body="slotProps">
+                  <span>{{ slotProps.data.status }}</span>
+                </template>
+              </Column>
+              <Column field="download" header="Download">
+                <template #body="slotProps">
+                  <Button 
+                    label="Download" 
+                    icon="pi pi-download" 
+                    :disabled="slotProps.data.status !== 'Completed'"
+                    @click="downloadResults(slotProps.data.job_id)" 
+                    class="p-button-success p-mr-2"
+                  />
+                </template>
+              </Column>
+            </DataTable>
+          </div>
+        </div>
+      </TabPanel>
 
+      <!-- EAV Upload Tab -->
+      <TabPanel header="EAV Upload">
+        <div class="upload-section">
+          <!-- Species Database Dropdown for EAV -->
+          <div class="dropdown-container">
+            <label for="eavPipelineSelect" class="pipeline-label">Please select a Species Database</label>
+            <Dropdown 
+              id="eavPipelineSelect"
+              v-model="selectedPipelineEav" 
+              :options="pipelineOptions" 
+              optionLabel="label" 
+              optionValue="value" 
+              placeholder="Please select one"
+              class="w-full"
+            />
+          </div>
 
+          <!-- Program Dropdown for EAV -->
+          <div class="dropdown-container">
+            <label for="eavProgramSelect" class="program-label">Please select or add Program</label>
+            <Dropdown
+              id="eavProgramSelect"
+              v-model="selectedProgramEav"
+              :options="programOptionsEav"
+              optionLabel="name"
+              optionValue="value"
+              placeholder="Please select one"
+              class="w-full"
+              @change="handleProgramChangeEav"
+            />
+            <!-- New Program Input for EAV -->
+            <div v-if="selectedProgramEav === 'new'" class="new-program-input">
+              <InputText v-model="newProgramNameEav" placeholder="Enter new program name" />
+              <Button 
+                label="Create Program" 
+                icon="pi pi-plus" 
+                @click="submitNewProgramEav"
+                class="mt-2"
+              />
+            </div>
+          </div>
 
-        <Button label="Submit Job" icon="pi pi-upload" @click="submitData" class="upload-button"/>
-        <p v-if="uploadMessage">{{ uploadMessage }}</p>
-      </div>
-    </div>
+          <!-- EAV File Upload Section -->
+          <div class="file-upload-container">
+            <FileUpload
+              mode="basic"
+              chooseLabel="Choose Files"
+              @select="handleFileSelectEav"
+              :customUpload="true"
+              :auto="false"
+              :multiple="true"
+            />
+            <Button 
+              label="Submit EAV Job" 
+              icon="pi pi-upload" 
+              @click="submitEavData" 
+              class="upload-button"
+            />
+            <p v-if="uploadMessageEav">{{ uploadMessageEav }}</p>
+          </div>
+        </div>
 
-    <div class="job-status-section">
-      <h2>Submitted Jobs</h2>
-      <Button label="Refresh Jobs" icon="pi pi-refresh" @click="fetchJobs" class="refresh-button"/>
-
-      <div class="table-container">
-        <DataTable :value="jobs" :responsiveLayout="'scroll'" class="job-table">
-          <Column field="job_id" header="Job ID"></Column>
-          <Column field="status" header="Status"></Column>
-          <Column header="Submission Time" :body="submissionTimeTemplate"></Column>
-          <Column header="Completion Time" :body="completionTimeTemplate"></Column>
-          <Column header="Actions" :body="actionsTemplate"></Column>
-        </DataTable>
-      </div>
-    </div>
+        <!-- Job Status Table for EAV Uploads -->
+        <div class="job-status-section">
+          <h2>EAV Upload Job Status</h2>
+          <div class="table-container">
+            <DataTable :value="jobsEavList" :responsiveLayout="'scroll'">
+              <Column field="file_name" header="File">
+                <template #body="slotProps">
+                  <span>{{ slotProps.data.file_name }}</span>
+                </template>
+              </Column>
+              <Column field="status" header="Status">
+                <template #body="slotProps">
+                  <span>{{ slotProps.data.status }}</span>
+                </template>
+              </Column>
+              <Column field="download" header="Download">
+                <template #body="slotProps">
+                  <Button 
+                    label="Download" 
+                    icon="pi pi-download" 
+                    :disabled="slotProps.data.status !== 'Completed'"
+                    @click="downloadEavResults(slotProps.data.job_id)" 
+                    class="p-button-success p-mr-2"
+                  />
+                </template>
+              </Column>
+            </DataTable>
+          </div>
+        </div>
+      </TabPanel>
+    </TabView>
   </div>
 </template>
 
+
 <script>
-import { ref, onMounted, onBeforeUnmount } from 'vue';
+import { ref, onMounted } from 'vue';
 import axiosInstance from '../axiosConfig';
 import { mapGetters, mapActions } from 'vuex';
 
+// Import PrimeVue components
+import Dropdown from 'primevue/dropdown';
+import FileUpload from 'primevue/fileupload';
+import Button from 'primevue/button';
+import DataTable from 'primevue/datatable';
+import Column from 'primevue/column';
+import InputText from 'primevue/inputtext';
+import TabView from 'primevue/tabview';
+import TabPanel from 'primevue/tabpanel';
+
 export default {
+  name: 'SystemAdministration',
+  components: {
+    Dropdown,
+    FileUpload,
+    Button,
+    DataTable,
+    Column,
+    InputText,
+    TabView,
+    TabPanel
+  },
   computed: {
     ...mapGetters(['isAuthenticated', 'isAdmin']),
   },
@@ -73,15 +225,17 @@ export default {
     ...mapActions(['checkAuthStatus', 'logout']),
   },
   setup() {
+    // -------------------
+    // Standard Upload State
+    // -------------------
     const selectedFiles = ref([]);
     const selectedPipeline = ref("");
-    const selectedProject = ref("");
-    const newProjectName = ref("");
-    const projects = ref([]);
+    const selectedProgram = ref("");
+    const newProgramName = ref("");
     const uploadMessage = ref(null);
-    const jobs = ref([]);
-    let refreshInterval = null;
+    const jobsStandard = ref([]);
 
+    // Dropdown Options
     const pipelineOptions = ref([
       { label: 'Alfalfa', value: 'alfalfa' },
       { label: 'Cranberry', value: 'cranberry' },
@@ -89,74 +243,200 @@ export default {
       { label: 'Sweetpotato', value: 'sweetpotato' }
     ]);
 
-    // Dynamically build project options including a "new" option
-    const projectOptions = ref([]);
+    const programOptions = ref([]);
 
-    const fetchProjects = async () => {
+    // -------------------
+    // EAV Upload State
+    // -------------------
+    const selectedFilesEav = ref([]);
+    const selectedPipelineEav = ref("");
+    const selectedProgramEav = ref("");
+    const newProgramNameEav = ref("");
+    const uploadMessageEav = ref(null);
+    const jobsEavList = ref([]);
+
+    const programOptionsEav = ref([]);
+
+    // -------------------
+    // Fetch Programs for Standard Upload
+    // -------------------
+    const fetchPrograms = async () => {
       try {
-        const response = await axiosInstance.get("/posts/projects/list");
-        // Map projects from the server to dropdown options
-        // Add a "new" option at the end.
-        projectOptions.value = response.data.projects.map((proj) => ({
+        const response = await axiosInstance.get("/posts/programs/list");
+        const fetchedPrograms = response.data.programs || [];
+
+        // Map existing programs to dropdown options
+        programOptions.value = fetchedPrograms.map((proj) => ({
           name: proj.name,
           value: proj.name
         }));
-        projectOptions.value.push({ name: "Add new project", value: "new" });
-        projects.value = response.data.projects;
+
+        // Always add the "Add new program" option
+        programOptions.value.push({ name: "Add new program", value: "new" });
+
+        // Update the local programs list
+        // programs.value = fetchedPrograms; // Not needed as we mapped above
+
+        // If no existing programs, set selectedProgram to 'new' to show InputText
+        if (fetchedPrograms.length === 0) {
+          selectedProgram.value = 'new';
+        } else {
+          // Optionally, reset to default placeholder if programs exist
+          selectedProgram.value = '';
+        }
       } catch (error) {
-        console.error("Error fetching projects:", error);
+        console.error("Error fetching programs:", error);
       }
     };
 
-    const createProject = async (projectName) => {
+    // -------------------
+    // Fetch Programs for EAV Upload
+    // -------------------
+    const fetchProgramsEav = async () => {
       try {
-        const response = await axiosInstance.post('/posts/projects/create', { name: projectName });
-        await fetchProjects();
-        selectedProject.value = response.data.project.name;
+        const response = await axiosInstance.get("/posts/programs/list");
+        const fetchedPrograms = response.data.programs || [];
+
+        // Map existing programs to dropdown options
+        programOptionsEav.value = fetchedPrograms.map((proj) => ({
+          name: proj.name,
+          value: proj.name
+        }));
+
+        // Always add the "Add new program" option
+        programOptionsEav.value.push({ name: "Add new program", value: "new" });
+
+        // If no existing programs, set selectedProgramEav to 'new' to show InputText
+        if (fetchedPrograms.length === 0) {
+          selectedProgramEav.value = 'new';
+        } else {
+          // Optionally, reset to default placeholder if programs exist
+          selectedProgramEav.value = '';
+        }
       } catch (error) {
-        console.error("Error creating project:", error);
-        uploadMessage.value = "There was an error creating the project.";
+        console.error("Error fetching programs for EAV:", error);
+      }
+    };
+
+    // -------------------
+    // Handle Program Change for Standard Upload
+    // -------------------
+    const handleProgramChange = () => {
+      if (selectedProgram.value === 'new') {
+        // Optionally, focus on the newProgramName input
+        // Or perform other actions
+      }
+    };
+
+    // -------------------
+    // Handle Program Change for EAV Upload
+    // -------------------
+    const handleProgramChangeEav = () => {
+      if (selectedProgramEav.value === 'new') {
+        // Optionally, focus on the newProgramNameEav input
+        // Or perform other actions
+      }
+    };
+
+    // -------------------
+    // Create New Program for Standard Upload
+    // -------------------
+    const createProgram = async (programName) => {
+      try {
+        const response = await axiosInstance.post('/posts/programs/create', { name: programName });
+        await fetchPrograms();
+        selectedProgram.value = response.data.program.name;
+        newProgramName.value = ""; // Clear input after creation
+        uploadMessage.value = "Program created successfully.";
+      } catch (error) {
+        console.error("Error creating program:", error);
+        if (error.response && error.response.data && error.response.data.detail) {
+          uploadMessage.value = error.response.data.detail;
+        } else {
+          uploadMessage.value = "There was an error creating the program.";
+        }
         throw error;
       }
     };
 
-    const handleFileSelect = (event) => {
-      // event.files is an array of files
-      selectedFiles.value = event.files;
-      console.log('Selected files:', selectedFiles.value);
+    // -------------------
+    // Create New Program for EAV Upload
+    // -------------------
+    const createProgramEav = async (programName) => {
+      try {
+        const response = await axiosInstance.post('/posts/programs/create', { name: programName });
+        await fetchProgramsEav();
+        selectedProgramEav.value = response.data.program.name;
+        newProgramNameEav.value = ""; // Clear input after creation
+        uploadMessageEav.value = "Program created successfully.";
+      } catch (error) {
+        console.error("Error creating EAV program:", error);
+        if (error.response && error.response.data && error.response.data.detail) {
+          uploadMessageEav.value = error.response.data.detail;
+        } else {
+          uploadMessageEav.value = "There was an error creating the program.";
+        }
+        throw error;
+      }
     };
 
+    // -------------------
+    // Handle File Selection for Standard Upload
+    // -------------------
+    const handleFileSelect = (event) => {
+      selectedFiles.value = event.files;
+      console.log('Selected files (Standard):', selectedFiles.value);
+    };
+
+    // -------------------
+    // Handle File Selection for EAV Upload
+    // -------------------
+    const handleFileSelectEav = (event) => {
+      selectedFilesEav.value = event.files;
+      console.log('Selected files (EAV):', selectedFilesEav.value);
+    };
+
+    // -------------------
+    // Submit Standard Upload Data
+    // -------------------
     const submitData = async () => {
       if (!selectedPipeline.value) {
         uploadMessage.value = "Please select a species.";
         return;
       }
 
-      if (!selectedProject.value && !newProjectName.value) {
-        uploadMessage.value = "Please select or add a project.";
+      if (!selectedProgram.value) {
+        uploadMessage.value = "Please select a program.";
+        return;
+      }
+
+      if (selectedProgram.value === 'new' && !newProgramName.value) {
+        uploadMessage.value = "Please enter a name for the new program.";
         return;
       }
 
       const fd = new FormData();
-      selectedFiles.value.forEach((file) => {
-        fd.append("file", file);
-      });
+      if (selectedFiles.value.length > 0) {
+        // Append all selected files
+        selectedFiles.value.forEach((file) => {
+          fd.append("file", file);
+        });
+      } else {
+        uploadMessage.value = "No file selected.";
+        return;
+      }
 
       fd.append("species", selectedPipeline.value);
 
-      if (selectedProject.value === 'new') {
-        if (!newProjectName.value) {
-          uploadMessage.value = "Please enter a name for the new project.";
-          return;
-        }
+      if (selectedProgram.value === 'new') {
         try {
-          await createProject(newProjectName.value);
-          fd.append("project_name", newProjectName.value);
+          await createProgram(newProgramName.value);
+          fd.append("program_name", newProgramName.value);
         } catch (error) {
           return;
         }
       } else {
-        fd.append("project_name", selectedProject.value);
+        fd.append("program_name", selectedProgram.value);
       }
 
       try {
@@ -168,23 +448,141 @@ export default {
           }
         );
         uploadMessage.value = response.data.message;
-        fetchProjects();
+        fetchJobsStandard();
+        fetchPrograms();
       } catch (error) {
-        console.error("There was an error processing the file:", error);
-        uploadMessage.value = "There was an error processing the file.";
+        console.error("There was an error processing the standard upload file:", error);
+        if (error.response && error.response.data && error.response.data.detail) {
+          uploadMessage.value = error.response.data.detail;
+        } else {
+          uploadMessage.value = "There was an error processing the file.";
+        }
       }
     };
 
-    const fetchJobs = () => {
-      axiosInstance.get('/posts/jobStatus')
-        .then(response => {
-          jobs.value = response.data;
-        })
-        .catch(error => {
-          console.error("There was an error fetching job statuses: ", error);
+    // -------------------
+    // Submit EAV Upload Data
+    // -------------------
+    const submitEavData = async () => {
+      if (!selectedPipelineEav.value) {
+        uploadMessageEav.value = "Please select a species.";
+        return;
+      }
+
+      if (!selectedProgramEav.value) {
+        uploadMessageEav.value = "Please select a program.";
+        return;
+      }
+
+      if (selectedProgramEav.value === 'new' && !newProgramNameEav.value) {
+        uploadMessageEav.value = "Please enter a name for the new program.";
+        return;
+      }
+
+      const fd = new FormData();
+      if (selectedFilesEav.value.length > 0) {
+        // Append all selected files
+        selectedFilesEav.value.forEach((file) => {
+          fd.append("file", file);
         });
+      } else {
+        uploadMessageEav.value = "No file selected.";
+        return;
+      }
+
+      fd.append("species", selectedPipelineEav.value);
+
+      if (selectedProgramEav.value === 'new') {
+        try {
+          await createProgramEav(newProgramNameEav.value);
+          fd.append("program_name", newProgramNameEav.value);
+        } catch (error) {
+          return;
+        }
+      } else {
+        fd.append("program_name", selectedProgramEav.value);
+      }
+
+      try {
+        const response = await axiosInstance.post(
+          "/posts/eav_upload/",
+          fd,
+          {
+            headers: { 'Content-Type': 'multipart/form-data' }
+          }
+        );
+        uploadMessageEav.value = response.data.message;
+        fetchJobsEav();
+        fetchProgramsEav();
+      } catch (error) {
+        console.error("There was an error processing the EAV upload file:", error);
+        if (error.response && error.response.data && error.response.data.detail) {
+          uploadMessageEav.value = error.response.data.detail;
+        } else {
+          uploadMessageEav.value = "There was an error processing the file.";
+        }
+      }
     };
 
+    // -------------------
+    // Submit New Program for Standard Upload
+    // -------------------
+    const submitNewProgram = async () => {
+      if (!newProgramName.value.trim()) {
+        uploadMessage.value = "Please enter a valid program name.";
+        return;
+      }
+
+      try {
+        await createProgram(newProgramName.value.trim());
+      } catch (error) {
+        // Error message is already set in createProgram
+      }
+    };
+
+    // -------------------
+    // Submit New Program for EAV Upload
+    // -------------------
+    const submitNewProgramEav = async () => {
+      if (!newProgramNameEav.value.trim()) {
+        uploadMessageEav.value = "Please enter a valid program name.";
+        return;
+      }
+
+      try {
+        await createProgramEav(newProgramNameEav.value.trim());
+      } catch (error) {
+        // Error message is already set in createProgramEav
+      }
+    };
+
+    // -------------------
+    // Fetch Jobs for Standard Upload
+    // -------------------
+    const fetchJobsStandard = async () => {
+      try {
+        const response = await axiosInstance.get('/posts/jobStatus');
+        jobsStandard.value = response.data;
+      } catch (error) {
+        console.error("There was an error fetching standard job statuses: ", error);
+      }
+    };
+
+    // -------------------
+    // Fetch Jobs for EAV Upload
+    // -------------------
+    const fetchJobsEav = async () => {
+      try {
+        const response = await axiosInstance.get('/posts/eav_jobStatus');
+        jobsEavList.value = response.data;
+      } catch (error) {
+        console.error("There was an error fetching EAV job statuses: ", error);
+      }
+    };
+
+    // -------------------
+    // Download Results for Standard Upload
+    // -------------------
     const downloadResults = (jobId) => {
       axiosInstance.get(`/posts/download/${jobId}`, { responseType: 'blob' })
         .then(response => {
@@ -197,65 +595,82 @@ export default {
           link.parentNode.removeChild(link);
         })
         .catch(error => {
-          console.error("There was an error downloading the results: ", error);
+          console.error("There was an error downloading the standard results: ", error);
         });
     };
 
-    // Table column templates
-    const submissionTimeTemplate = (rowData) => {
-      return new Date(rowData.submission_time).toLocaleString();
+    // -------------------
+    // Download Results for EAV Upload
+    // -------------------
+    const downloadEavResults = (jobId) => {
+      axiosInstance.get(`/posts/eav_download/${jobId}`, { responseType: 'blob' })
+        .then(response => {
+          const url = window.URL.createObjectURL(new Blob([response.data]));
+          const link = document.createElement('a');
+          link.href = url;
+          link.setAttribute('download', `${jobId}-eav-results.csv`);
+          document.body.appendChild(link);
+          link.click();
+          link.parentNode.removeChild(link);
+        })
+        .catch(error => {
+          console.error("There was an error downloading the EAV results: ", error);
+        });
     };
 
-    const completionTimeTemplate = (rowData) => {
-      return rowData.completion_time ? new Date(rowData.completion_time).toLocaleString() : 'N/A';
-    };
-
-    const actionsTemplate = (rowData) => {
-      if (rowData.status === 'completed') {
-        return (
-          `<button class="p-button p-component" onclick='(${downloadResults.toString()})("${rowData.job_id}")'>
-             <span class="p-button-icon pi pi-download"></span>
-             <span class="p-button-label">Download</span>
-           </button>`
-        );
-      } else {
-        return '';
-      }
-    };
-
+    // -------------------
+    // Fetch All Jobs on Mount
+    // -------------------
     onMounted(() => {
-      fetchJobs();
-      fetchProjects();
-      refreshInterval = setInterval(fetchJobs, 15000);
+      fetchJobsStandard();
+      fetchJobsEav();
+      fetchPrograms();
+      fetchProgramsEav();
+      // Refresh jobs every 15 seconds
+      setInterval(() => {
+        fetchJobsStandard();
+        fetchJobsEav();
+      }, 15000);
     });
 
-    onBeforeUnmount(() => {
-      if (refreshInterval) {
-        clearInterval(refreshInterval);
-      }
-    });
+    // No need for onBeforeUnmount unless cleaning up intervals, but using setInterval directly is acceptable
 
     return {
+      // Standard Upload
       selectedFiles,
       selectedPipeline,
-      selectedProject,
-      newProjectName,
-      projects,
+      selectedProgram,
+      newProgramName,
       uploadMessage,
       pipelineOptions,
-      projectOptions,
+      programOptions,
       handleFileSelect,
       submitData,
-      jobs,
-      fetchJobs,
+      submitNewProgram,
+      jobsStandard,
       downloadResults,
-      submissionTimeTemplate,
-      completionTimeTemplate,
-      actionsTemplate
+
+      // EAV Upload
+      selectedFilesEav,
+      selectedPipelineEav,
+      selectedProgramEav,
+      newProgramNameEav,
+      uploadMessageEav,
+      programOptionsEav,
+      handleFileSelectEav,
+      submitEavData,
+      submitNewProgramEav,
+      jobsEavList,
+      downloadEavResults,
+
+      // Shared Handlers
+      handleProgramChange,
+      handleProgramChangeEav
     };
   }
 };
 </script>
+
 
 <style scoped>
 .system-admin-container {
@@ -276,13 +691,13 @@ export default {
   gap: 10px;
 }
 
-.pipeline-label, .project-label {
+.pipeline-label, .program-label {
   font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
   margin-bottom: 5px;
   color: #00796b;
 }
 
-.new-project-input {
+.new-program-input {
   margin-top: 10px;
 }
 
@@ -296,14 +711,17 @@ export default {
   margin-bottom: 30px;
 }
 
-.refresh-button {
-  margin-bottom: 20px;
-  display: block;
-  margin-left: auto;
-  margin-right: auto;
-}
-
 .table-container {
   width: 100%;
 }
+
+.p-button-success {
+  margin-right: 0.5em;
+}
+
+/* Optional: Adjust spacing within tabs */
+.p-tabview .p-tabview-panels {
+  margin-top: 20px;
+}
 </style>
+
