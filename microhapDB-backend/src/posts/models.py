@@ -5,7 +5,7 @@ from sqlalchemy import create_engine
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict
 from datetime import datetime
-from src.models import Base, Sequence, Accession, AllelePresence, UploadBatch, SequenceLog, Program, SequencePresence, DATABASE_URL
+from src.models import Base, Sequence, Accession, AllelePresence, UploadBatch, SequenceLog, Program, Source, SequencePresence, DATABASE_URL
 
 
 class JobStatusResponse(BaseModel):
@@ -53,6 +53,35 @@ class AccessionRequest(BaseModel):
 class AccessionResponse(BaseModel):
     alleleid: str
     accessions: List[str]
+
+class SourceBase(BaseModel):
+    name: str = Field(..., example="Source Name")
+    description: Optional[str] = Field(None, example="Description of the source")
+
+class SourceCreate(SourceBase):
+    pass
+
+class SourceResponse(SourceBase):
+    id: int
+    created_at: datetime
+
+    class Config:
+        orm_mode = True
+
+class ProgramResponse(BaseModel):
+    id: int
+    name: str
+    description: Optional[str]
+    created_at: datetime
+    sources: List[SourceResponse] = []
+
+    class Config:
+        orm_mode = True
+
+class ProgramCreate(BaseModel):
+    name: str = Field(..., example="Program Name")
+    description: Optional[str] = Field(None, example="Description of the program")
+    source_ids: Optional[List[int]] = Field(None, example=[1, 2])  # To associate sources upon creation
 
 
 # Create an asynchronous engine

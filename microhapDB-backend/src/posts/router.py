@@ -12,7 +12,7 @@ from .models import Sequence, Accession, AllelePresence, get_session, UploadBatc
     SequencePresence, \
     JobStatusResponse, \
     QueryRequest, PaginatedSequenceResponse, SequenceResponse, PaginatedSequenceRequest, \
-    AsyncSessionLocal, ColumnFilter, AccessionResponse, AccessionRequest
+    AsyncSessionLocal, ColumnFilter, AccessionResponse, AccessionRequest, Source, SourceResponse, SourceCreate
 from .service import get_all_batch_summaries, get_new_sequences_for_batch, get_total_unique_sequences, \
     generate_upset_plot, generate_line_chart, generate_line_chart_data
 import pandas as pd
@@ -242,6 +242,7 @@ async def add_allele_accessions_eav(session: AsyncSession, allele_id: str, speci
             await session.rollback()
             logging.warning(
                 f"IntegrityError: Possibly duplicate AllelePresence records for allele '{allele_id}' and species '{species}'")
+
 
 async def process_eav_upload(file_data: bytes, job_id: str, species: str, program_id: int):
     async with AsyncSessionLocal() as db:
@@ -746,3 +747,29 @@ async def create_program(request: ProgramCreateRequest, db: AsyncSession = Depen
         raise HTTPException(status_code=400, detail="Failed to create program due to a database error.")
 
     return {"program": {"id": new_program.id, "name": new_program.name, "description": new_program.description}}
+
+
+@router.get("/sources/list", response_model=List[SourceResponse])
+async def list_sources(db: AsyncSession = Depends(get_session)):
+    sources = await db.execute(select(Source))
+    source_list = sources.scalars().all()
+    return source_list
+
+
+@router.post("/sources/create", response_model=SourceResponse)
+async def create_source(source: SourceCreate, db: AsyncSession = Depends(get_session)):
+    # Check if the source already exists
+    existing_source = await db.execute(select(Source).where(Source.name == source.name))
+    if existing_source.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="Source with this name already exists.")
+
+    new_source = Source(name=source.name, description=source.description)
+    db.add(new_source)
+    try:
+        await db.commit()
+        await db.refresh(new_source)
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to create source due to a database error.")
+
+    return new_source

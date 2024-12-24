@@ -6,9 +6,10 @@
   <component name="ChangeListManager">
     <list default="true" id="0ea7c9d8-62b7-4200-8333-3f1854176b42" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/microhapDB-frontend/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/microhapDB-frontend/package-lock.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/microhapDB-frontend/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/microhapDB-frontend/package.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/microhapDB-frontend/src/components/Details.vue" beforeDir="false" afterPath="$PROJECT_DIR$/microhapDB-frontend/src/components/Details.vue" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/microhapDB-backend/src/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/microhapDB-backend/src/models.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/microhapDB-backend/src/posts/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/microhapDB-backend/src/posts/models.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/microhapDB-backend/src/posts/router.py" beforeDir="false" afterPath="$PROJECT_DIR$/microhapDB-backend/src/posts/router.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/microhapDB-frontend/src/components/SystemAdministration.vue" beforeDir="false" afterPath="$PROJECT_DIR$/microhapDB-frontend/src/components/SystemAdministration.vue" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />

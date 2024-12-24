@@ -1,5 +1,5 @@
 from sqlalchemy import create_engine, Column, Integer, String, PrimaryKeyConstraint, ForeignKeyConstraint, Identity, \
-    ForeignKey, Boolean, DateTime, BigInteger, Text, UniqueConstraint, Index
+    ForeignKey, Boolean, DateTime, BigInteger, Text, UniqueConstraint, Index, Table
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.declarative import declarative_base
@@ -10,6 +10,14 @@ import uuid
 
 Base = declarative_base()
 
+# Association Table for Programs and Sources
+program_source_association = Table(
+    'program_source_association',
+    Base.metadata,
+    Column('program_id', Integer, ForeignKey('programs.id'), primary_key=True),
+    Column('source_id', Integer, ForeignKey('sources.id'), primary_key=True),
+    UniqueConstraint('program_id', 'source_id', name='uix_program_source')
+)
 
 class User(Base):
     __tablename__ = "users"
@@ -59,6 +67,33 @@ class Program(Base):
 
     upload_batches = relationship("UploadBatch", back_populates="program")
     sequence_presences = relationship("SequencePresence", back_populates="program")
+
+    sources = relationship(
+        "Source",
+        secondary=program_source_association,
+        back_populates="programs"
+    )
+
+
+
+# models.py
+
+class Source(Base):
+    __tablename__ = 'sources'
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, unique=True, nullable=False)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=func.now())
+
+    # Relationship to Programs
+    programs = relationship(
+        "Program",
+        secondary=program_source_association,
+        back_populates="sources"
+    )
+
+
+
 
 
 class Sequence(Base):
@@ -162,7 +197,6 @@ class AllelePresence(Base):
 
 Index('idx_alleleid', AllelePresence.alleleid)
 Index('idx_accession_id', AllelePresence.accession_id)
-
 
 
 class SequencePresence(Base):

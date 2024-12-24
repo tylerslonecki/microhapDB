@@ -1,17 +1,17 @@
 <template>
   <div class="system-admin-container">
     <TabView class="custom-tabview">
-      <!-- Standard Upload Tab -->
+      <!-- MADC Upload Tab -->
       <TabPanel header="MADC Upload" class="custom-tabpanel">
         <Panel header="MADC Upload">
           <!-- Upload Section -->
           <div class="upload-section">
             <!-- Species Database Dropdown -->
             <div class="dropdown-container">
-              <label for="pipelineSelect" class="pipeline-label">Please select a Species Database</label>
+              <label for="pipelineSelectMadc" class="pipeline-label">Please select a Species Database</label>
               <Dropdown 
-                id="pipelineSelect"
-                v-model="selectedPipeline" 
+                id="pipelineSelectMadc"
+                v-model="selectedPipelineMadc" 
                 :options="pipelineOptions" 
                 optionLabel="label" 
                 optionValue="value" 
@@ -22,27 +22,56 @@
 
             <!-- Program Dropdown -->
             <div class="dropdown-container">
-              <label for="programSelect" class="program-label">Please select or add Program</label>
+              <label for="programSelectMadc" class="program-label">Please select or add Program/Owner</label>
               <Dropdown
-                id="programSelect"
-                v-model="selectedProgram"
-                :options="programOptions"
+                id="programSelectMadc"
+                v-model="selectedProgramMadc"
+                :options="programOptionsMadc"
                 optionLabel="name"
                 optionValue="value"
                 placeholder="Please select one"
                 class="w-full"
-                @change="handleProgramChange"
+                @change="handleProgramChangeMadc"
               />
               <!-- New Program Input -->
-              <div v-if="selectedProgram === 'new'" class="new-program-input">
-                <InputText v-model="newProgramName" placeholder="Enter new program name" />
+              <div v-if="selectedProgramMadc === 'new'" class="new-program-input">
+                <InputText v-model="newProgramNameMadc" placeholder="Enter new program name" />
                 <Button 
                   label="Create Program" 
                   icon="pi pi-plus" 
-                  @click="submitNewProgram"
+                  @click="submitNewProgramMadc"
                   class="mt-2"
                 />
               </div>
+            </div>
+
+            <!-- Source Dropdown with Conditional Rendering -->
+            <div class="dropdown-container" v-if="sourceOptionsMadc.length > 0">
+              <label for="sourceSelectMadc" class="source-label">Please select or add Source</label>
+              <Dropdown
+                id="sourceSelectMadc"
+                v-model="selectedSourceMadc"
+                :options="sourceOptionsMadc"
+                optionLabel="name"
+                optionValue="value"
+                placeholder="Please select one"
+                class="w-full"
+                @change="handleSourceChangeMadc"
+              />
+              <!-- New Source Input -->
+              <div v-if="selectedSourceMadc === 'new'" class="new-source-input">
+                <InputText v-model="newSourceNameMadc" placeholder="Enter new source name" />
+                <Button 
+                  label="Create Source" 
+                  icon="pi pi-plus" 
+                  @click="submitNewSourceMadc"
+                  class="mt-2"
+                />
+              </div>
+            </div>
+            <!-- Loading Indicator -->
+            <div v-else>
+              <p>Loading sources...</p>
             </div>
 
             <!-- File Upload Section -->
@@ -50,7 +79,7 @@
               <FileUpload
                 mode="basic"
                 chooseLabel="Choose Files"
-                @select="handleFileSelect"
+                @select="handleFileSelectMadc"
                 :customUpload="true"
                 :auto="false"
                 :multiple="true"
@@ -58,22 +87,21 @@
               <Button 
                 label="Submit Job" 
                 icon="pi pi-upload" 
-                @click="submitData" 
+                @click="submitMadcData" 
                 class="upload-button"
               />
-              <p v-if="uploadMessage">{{ uploadMessage }}</p>
+              <p v-if="uploadMessageMadc">{{ uploadMessageMadc }}</p>
             </div>
           </div>
 
-          <!-- Job Status Table for Standard Uploads -->
+          <!-- Job Status Table for MADC Uploads -->
           <div class="job-status-section">
-            
             <DataTable 
-            :value="jobsStandard" 
-            :responsiveLayout="'scroll'" 
-            class="custom-datatable"
-            showGridlines 
-            stripedRows
+              :value="jobsMadc" 
+              :responsiveLayout="'scroll'" 
+              class="custom-datatable"
+              showGridlines 
+              stripedRows
             >
               <!-- Header Slot for Status Title -->
               <template #header>
@@ -91,22 +119,21 @@
                 </template>
               </Column>
             </DataTable>
-            
           </div>
         </Panel>
       </TabPanel>
 
-      <!-- EAV Upload Tab -->
+      <!-- PAV Upload Tab -->
       <TabPanel header="PAV Upload" class="custom-tabpanel">
         <Panel header="PAV Upload">
           <!-- Upload Section -->
           <div class="upload-section">
-            <!-- Species Database Dropdown for EAV -->
+            <!-- Species Database Dropdown for PAV -->
             <div class="dropdown-container">
-              <label for="eavPipelineSelect" class="pipeline-label">Please select a Species Database</label>
+              <label for="pipelineSelectPav" class="pipeline-label">Please select a Species Database</label>
               <Dropdown 
-                id="eavPipelineSelect"
-                v-model="selectedPipelineEav" 
+                id="pipelineSelectPav"
+                v-model="selectedPipelinePav" 
                 :options="pipelineOptions" 
                 optionLabel="label" 
                 optionValue="value" 
@@ -115,37 +142,38 @@
               />
             </div>
 
-            <!-- Program Dropdown for EAV -->
+            <!-- Program Dropdown for PAV -->
             <div class="dropdown-container">
-              <label for="eavProgramSelect" class="program-label">Please select or add Program</label>
+              <label for="programSelectPav" class="program-label">Please select or add Program/Owner</label>
               <Dropdown
-                id="eavProgramSelect"
-                v-model="selectedProgramEav"
-                :options="programOptionsEav"
+                id="programSelectPav"
+                v-model="selectedProgramPav"
+                :options="programOptionsPav"
                 optionLabel="name"
                 optionValue="value"
                 placeholder="Please select one"
                 class="w-full"
-                @change="handleProgramChangeEav"
+                @change="handleProgramChangePav"
               />
-              <!-- New Program Input for EAV -->
-              <div v-if="selectedProgramEav === 'new'" class="new-program-input">
-                <InputText v-model="newProgramNameEav" placeholder="Enter new program name" />
+              <!-- New Program Input for PAV -->
+              <div v-if="selectedProgramPav === 'new'" class="new-program-input">
+                <InputText v-model="newProgramNamePav" placeholder="Enter new program name" />
                 <Button 
                   label="Create Program" 
                   icon="pi pi-plus" 
-                  @click="submitNewProgramEav"
+                  @click="submitNewProgramPav"
                   class="mt-2"
                 />
               </div>
             </div>
 
-            <!-- EAV File Upload Section -->
+
+            <!-- PAV File Upload Section -->
             <div class="file-upload-container">
               <FileUpload
                 mode="basic"
                 chooseLabel="Choose Files"
-                @select="handleFileSelectEav"
+                @select="handleFileSelectPav"
                 :customUpload="true"
                 :auto="false"
                 :multiple="true"
@@ -153,22 +181,22 @@
               <Button 
                 label="Submit PAV Job" 
                 icon="pi pi-upload" 
-                @click="submitEavData" 
+                @click="submitPavData" 
                 class="upload-button"
               />
-              <p v-if="uploadMessageEav">{{ uploadMessageEav }}</p>
+              <p v-if="uploadMessagePav">{{ uploadMessagePav }}</p>
             </div>
           </div>
 
-          <!-- Job Status Table for EAV Uploads -->
+          <!-- Job Status Table for PAV Uploads -->
           <div class="job-status-section">
             <DataTable 
-              :value="jobsStandard" 
+              :value="jobsPav" 
               :responsiveLayout="'scroll'" 
               class="custom-datatable"
               showGridlines 
               stripedRows
-              >
+            >
               <!-- Header Slot for Status Title -->
               <template #header>
                 <span class="table-header">PAV Upload Job Status</span>
@@ -188,11 +216,103 @@
           </div>
         </Panel>
       </TabPanel>
+
+      <!-- Supplemental Upload Tab -->
+      <TabPanel header="Supplemental Upload" class="custom-tabpanel">
+        <Panel header="Supplemental Upload">
+          <!-- Upload Section -->
+          <div class="upload-section">
+            <!-- Species Database Dropdown for Supplemental -->
+            <div class="dropdown-container">
+              <label for="pipelineSelectSupplemental" class="pipeline-label">Please select a Species Database</label>
+              <Dropdown 
+                id="pipelineSelectSupplemental"
+                v-model="selectedPipelineSupplemental" 
+                :options="pipelineOptions" 
+                optionLabel="label" 
+                optionValue="value" 
+                placeholder="Please select one"
+                class="w-full"
+              />
+            </div>
+
+            <!-- Program Dropdown for Supplemental -->
+            <div class="dropdown-container">
+              <label for="programSelectSupplemental" class="program-label">Please select or add Program/Owner</label>
+              <Dropdown
+                id="programSelectSupplemental"
+                v-model="selectedProgramSupplemental"
+                :options="programOptionsSupplemental"
+                optionLabel="name"
+                optionValue="value"
+                placeholder="Please select one"
+                class="w-full"
+                @change="handleProgramChangeSupplemental"
+              />
+              <!-- New Program Input for Supplemental -->
+              <div v-if="selectedProgramSupplemental === 'new'" class="new-program-input">
+                <InputText v-model="newProgramNameSupplemental" placeholder="Enter new program name" />
+                <Button 
+                  label="Create Program" 
+                  icon="pi pi-plus" 
+                  @click="submitNewProgramSupplemental"
+                  class="mt-2"
+                />
+              </div>
+            </div>
+
+
+            <!-- Supplemental File Upload Section -->
+            <div class="file-upload-container">
+              <FileUpload
+                mode="basic"
+                chooseLabel="Choose Files"
+                @select="handleFileSelectSupplemental"
+                :customUpload="true"
+                :auto="false"
+                :multiple="true"
+              />
+              <Button 
+                label="Submit Supplemental Job" 
+                icon="pi pi-upload" 
+                @click="submitSupplementalData" 
+                class="upload-button"
+              />
+              <p v-if="uploadMessageSupplemental">{{ uploadMessageSupplemental }}</p>
+            </div>
+          </div>
+
+          <!-- Job Status Table for Supplemental Uploads -->
+          <div class="job-status-section">
+            <DataTable 
+              :value="jobsSupplemental" 
+              :responsiveLayout="'scroll'" 
+              class="custom-datatable"
+              showGridlines 
+              stripedRows
+            >
+              <!-- Header Slot for Status Title -->
+              <template #header>
+                <span class="table-header">Supplemental Upload Job Status</span>
+              </template>
+
+              <Column field="file_name" header="File">
+                <template #body="slotProps">
+                  <span>{{ slotProps.data.file_name }}</span>
+                </template>
+              </Column>
+              <Column field="status" header="Status">
+                <template #body="slotProps">
+                  <span>{{ slotProps.data.status }}</span>
+                </template>
+              </Column>
+            </DataTable>
+          </div>
+        </Panel>
+      </TabPanel>
     </TabView>
   </div>
 </template>
-
-
 
 
 <script>
@@ -232,16 +352,8 @@ export default {
   },
   setup() {
     // -------------------
-    // Standard Upload State
+    // Shared Upload State
     // -------------------
-    const selectedFiles = ref([]);
-    const selectedPipeline = ref("");
-    const selectedProgram = ref("");
-    const newProgramName = ref("");
-    const uploadMessage = ref(null);
-    const jobsStandard = ref([]);
-
-    // Dropdown Options
     const pipelineOptions = ref([
       { label: 'Alfalfa', value: 'alfalfa' },
       { label: 'Cranberry', value: 'cranberry' },
@@ -249,197 +361,303 @@ export default {
       { label: 'Sweetpotato', value: 'sweetpotato' }
     ]);
 
-    const programOptions = ref([]);
+    const programOptionsMadc = ref([]);
+    const programOptionsPav = ref([]);
+    const programOptionsSupplemental = ref([]);
+
+    // Initialize sourceOptionsMadc with "Add new source" option
+    const sourceOptionsMadc = ref([
+      { name: "Add new source", value: "new" }
+    ]);
 
     // -------------------
-    // EAV Upload State
+    // MADC Upload State
     // -------------------
-    const selectedFilesEav = ref([]);
-    const selectedPipelineEav = ref("");
-    const selectedProgramEav = ref("");
-    const newProgramNameEav = ref("");
-    const uploadMessageEav = ref(null);
-    const jobsEavList = ref([]);
+    const selectedFilesMadc = ref([]);
+    const selectedPipelineMadc = ref("");
+    const selectedProgramMadc = ref("");
+    const newProgramNameMadc = ref("");
+    const uploadMessageMadc = ref(null);
+    const jobsMadc = ref([]);
 
-    const programOptionsEav = ref([]);
+    const selectedSourceMadc = ref("new"); // Initialize to 'new' if no sources
+
+    const newSourceNameMadc = ref("");
 
     // -------------------
-    // Fetch Programs for Standard Upload
+    // PAV Upload State
+    // -------------------
+    const selectedFilesPav = ref([]);
+    const selectedPipelinePav = ref("");
+    const selectedProgramPav = ref("");
+    const newProgramNamePav = ref("");
+    const uploadMessagePav = ref(null);
+    const jobsPav = ref([]);
+
+
+    // -------------------
+    // Supplemental Upload State
+    // -------------------
+    const selectedFilesSupplemental = ref([]);
+    const selectedPipelineSupplemental = ref("");
+    const selectedProgramSupplemental = ref("");
+    const newProgramNameSupplemental = ref("");
+    const uploadMessageSupplemental = ref(null);
+    const jobsSupplemental = ref([]);
+
+
+    // -------------------
+    // Fetch Programs and Sources (Shared)
     // -------------------
     const fetchPrograms = async () => {
       try {
         const response = await axiosInstance.get("/posts/programs/list");
         const fetchedPrograms = response.data.programs || [];
 
-        // Map existing programs to dropdown options
-        programOptions.value = fetchedPrograms.map((proj) => ({
+        // Map existing programs to dropdown options for each upload type
+        const mappedPrograms = fetchedPrograms.map((proj) => ({
           name: proj.name,
           value: proj.name
         }));
 
-        // Always add the "Add new program" option
-        programOptions.value.push({ name: "Add new program", value: "new" });
+        // Update program options for each upload tab
+        programOptionsMadc.value = [...mappedPrograms, { name: "Add new program", value: "new" }];
+        programOptionsPav.value = [...mappedPrograms, { name: "Add new program", value: "new" }];
+        programOptionsSupplemental.value = [...mappedPrograms, { name: "Add new program", value: "new" }];
 
         // If no existing programs, set selectedProgram to 'new' to show InputText
         if (fetchedPrograms.length === 0) {
-          selectedProgram.value = 'new';
+          selectedProgramMadc.value = 'new';
+          selectedProgramPav.value = 'new';
+          selectedProgramSupplemental.value = 'new';
         } else {
           // Reset to default placeholder if programs exist
-          selectedProgram.value = '';
+          selectedProgramMadc.value = '';
+          selectedProgramPav.value = '';
+          selectedProgramSupplemental.value = '';
         }
       } catch (error) {
         console.error("Error fetching programs:", error);
       }
     };
 
-    // -------------------
-    // Fetch Programs for EAV Upload
-    // -------------------
-    const fetchProgramsEav = async () => {
+    const fetchSources = async () => {
       try {
-        const response = await axiosInstance.get("/posts/programs/list");
-        const fetchedPrograms = response.data.programs || [];
+        const response = await axiosInstance.get("/posts/sources/list");
+        const fetchedSources = response.data || [];
 
-        // Map existing programs to dropdown options
-        programOptionsEav.value = fetchedPrograms.map((proj) => ({
-          name: proj.name,
-          value: proj.name
+        // Map existing sources to dropdown options for each upload type
+        const mappedSources = fetchedSources.map((source) => ({
+          name: source.name,
+          value: source.name
         }));
 
-        // Always add the "Add new program" option
-        programOptionsEav.value.push({ name: "Add new program", value: "new" });
+        // Always include "Add new source" option
+        sourceOptionsMadc.value = [
+          ...mappedSources,
+          { name: "Add new source", value: "new" }
+        ];
 
-        // If no existing programs, set selectedProgramEav to 'new' to show InputText
-        if (fetchedPrograms.length === 0) {
-          selectedProgramEav.value = 'new';
+        console.log("Source Options:", sourceOptionsMadc.value); // Debugging Line
+
+        // If no existing sources, set selectedSource to 'new' to show InputText
+        if (fetchedSources.length === 0) {
+          selectedSourceMadc.value = 'new';
         } else {
-          // Reset to default placeholder if programs exist
-          selectedProgramEav.value = '';
+          // Reset to default placeholder if sources exist
+          selectedSourceMadc.value = null; // Or set to a default source if desired
         }
       } catch (error) {
-        console.error("Error fetching programs for EAV:", error);
+        console.error("Error fetching sources:", error);
       }
     };
 
     // -------------------
-    // Handle Program Change for Standard Upload
+    // Handle Program Change for MADC Upload
     // -------------------
-    const handleProgramChange = () => {
-      if (selectedProgram.value === 'new') {
-        // Optionally, focus on the newProgramName input
+    const handleProgramChangeMadc = () => {
+      if (selectedProgramMadc.value === 'new') {
+        // Optionally, focus on the newProgramNameMadc input
         // Or perform other actions
       }
     };
 
     // -------------------
-    // Handle Program Change for EAV Upload
+    // Handle Program Change for PAV Upload
     // -------------------
-    const handleProgramChangeEav = () => {
-      if (selectedProgramEav.value === 'new') {
-        // Optionally, focus on the newProgramNameEav input
+    const handleProgramChangePav = () => {
+      if (selectedProgramPav.value === 'new') {
+        // Optionally, focus on the newProgramNamePav input
         // Or perform other actions
       }
     };
 
     // -------------------
-    // Create New Program for Standard Upload
+    // Handle Program Change for Supplemental Upload
+    // -------------------
+    const handleProgramChangeSupplemental = () => {
+      if (selectedProgramSupplemental.value === 'new') {
+        // Optionally, focus on the newProgramNameSupplemental input
+        // Or perform other actions
+      }
+    };
+
+    // -------------------
+    // Handle Source Change for MADC Upload
+    // -------------------
+    const handleSourceChangeMadc = () => {
+      if (selectedSourceMadc.value === 'new') {
+        // Optionally, focus on the newSourceNameMadc input
+        // Or perform other actions
+      }
+    };
+
+
+    // -------------------
+    // Create New Program (Shared)
     // -------------------
     const createProgram = async (programName) => {
       try {
         const response = await axiosInstance.post('/posts/programs/create', { name: programName });
         await fetchPrograms();
-        selectedProgram.value = response.data.program.name;
-        newProgramName.value = ""; // Clear input after creation
-        uploadMessage.value = "Program created successfully.";
+        // Set the selected program to the newly created program
+        return response.data.program.name;
       } catch (error) {
         console.error("Error creating program:", error);
         if (error.response && error.response.data && error.response.data.detail) {
-          uploadMessage.value = error.response.data.detail;
+          return error.response.data.detail;
         } else {
-          uploadMessage.value = "There was an error creating the program.";
+          return "There was an error creating the program.";
         }
-        throw error;
       }
     };
 
     // -------------------
-    // Create New Program for EAV Upload
+    // Create New Source (Shared)
     // -------------------
-    const createProgramEav = async (programName) => {
+    const createSource = async (sourceName) => {
       try {
-        const response = await axiosInstance.post('/posts/programs/create', { name: programName });
-        await fetchProgramsEav();
-        selectedProgramEav.value = response.data.program.name;
-        newProgramNameEav.value = ""; // Clear input after creation
-        uploadMessageEav.value = "Program created successfully.";
+        const response = await axiosInstance.post('/posts/sources/create', { name: sourceName });
+        await fetchSources();
+        // Correctly access the 'name' field directly
+        return response.data.name;
       } catch (error) {
-        console.error("Error creating EAV program:", error);
+        console.error("Error creating source:", error);
         if (error.response && error.response.data && error.response.data.detail) {
-          uploadMessageEav.value = error.response.data.detail;
+          return error.response.data.detail;
         } else {
-          uploadMessageEav.value = "There was an error creating the program.";
+          return "There was an error creating the source.";
         }
-        throw error;
       }
     };
 
+
     // -------------------
-    // Handle File Selection for Standard Upload
+    // Handle File Selection for MADC Upload
     // -------------------
-    const handleFileSelect = (event) => {
-      selectedFiles.value = event.files;
-      console.log('Selected files (Standard):', selectedFiles.value);
+    const handleFileSelectMadc = (event) => {
+      selectedFilesMadc.value = event.files;
+      console.log('Selected files (MADC):', selectedFilesMadc.value);
     };
 
     // -------------------
-    // Handle File Selection for EAV Upload
+    // Handle File Selection for PAV Upload
     // -------------------
-    const handleFileSelectEav = (event) => {
-      selectedFilesEav.value = event.files;
-      console.log('Selected files (EAV):', selectedFilesEav.value);
+    const handleFileSelectPav = (event) => {
+      selectedFilesPav.value = event.files;
+      console.log('Selected files (PAV):', selectedFilesPav.value);
     };
 
     // -------------------
-    // Submit Standard Upload Data
+    // Handle File Selection for Supplemental Upload
     // -------------------
-    const submitData = async () => {
-      if (!selectedPipeline.value) {
-        uploadMessage.value = "Please select a species.";
+    const handleFileSelectSupplemental = (event) => {
+      selectedFilesSupplemental.value = event.files;
+      console.log('Selected files (Supplemental):', selectedFilesSupplemental.value);
+    };
+
+    // -------------------
+    // Submit MADC Upload Data
+    // -------------------
+    const submitMadcData = async () => {
+      if (!selectedPipelineMadc.value) {
+        uploadMessageMadc.value = "Please select a species.";
         return;
       }
 
-      if (!selectedProgram.value) {
-        uploadMessage.value = "Please select a program.";
+      if (!selectedProgramMadc.value) {
+        uploadMessageMadc.value = "Please select a program.";
         return;
       }
 
-      if (selectedProgram.value === 'new' && !newProgramName.value) {
-        uploadMessage.value = "Please enter a name for the new program.";
+      if (selectedProgramMadc.value === 'new' && !newProgramNameMadc.value) {
+        uploadMessageMadc.value = "Please enter a name for the new program.";
+        return;
+      }
+
+      if (!selectedSourceMadc.value) {
+        uploadMessageMadc.value = "Please select a source.";
+        return;
+      }
+
+      if (selectedSourceMadc.value === 'new' && !newSourceNameMadc.value) {
+        uploadMessageMadc.value = "Please enter a name for the new source.";
         return;
       }
 
       const fd = new FormData();
-      if (selectedFiles.value.length > 0) {
+      if (selectedFilesMadc.value.length > 0) {
         // Append all selected files
-        selectedFiles.value.forEach((file) => {
+        selectedFilesMadc.value.forEach((file) => {
           fd.append("file", file);
         });
       } else {
-        uploadMessage.value = "No file selected.";
+        uploadMessageMadc.value = "No file selected.";
         return;
       }
 
-      fd.append("species", selectedPipeline.value);
+      fd.append("species", selectedPipelineMadc.value);
 
-      if (selectedProgram.value === 'new') {
+      if (selectedProgramMadc.value === 'new') {
         try {
-          await createProgram(newProgramName.value);
-          fd.append("program_name", newProgramName.value);
+          const newProgram = await createProgram(newProgramNameMadc.value.trim());
+          if (typeof newProgram === 'string') {
+            if (newProgram === "There was an error creating the program.") {
+              uploadMessageMadc.value = newProgram;
+              return;
+            }
+            fd.append("program_name", newProgram);
+            selectedProgramMadc.value = newProgram;
+            newProgramNameMadc.value = ""; // Clear input after creation
+            uploadMessageMadc.value = "Program created successfully.";
+          }
         } catch (error) {
           return;
         }
       } else {
-        fd.append("program_name", selectedProgram.value);
+        fd.append("program_name", selectedProgramMadc.value);
+      }
+
+      if (selectedSourceMadc.value === 'new') {
+        try {
+          const newSource = await createSource(newSourceNameMadc.value.trim());
+          if (typeof newSource === 'string') {
+            if (newSource === "There was an error creating the source.") {
+              uploadMessageMadc.value = newSource;
+              return;
+            }
+            fd.append("source_name", newSource);
+            selectedSourceMadc.value = newSource;
+            newSourceNameMadc.value = ""; // Clear input after creation
+            uploadMessageMadc.value = uploadMessageMadc.value
+              ? `${uploadMessageMadc.value} Source created successfully.`
+              : "Source created successfully.";
+          }
+        } catch (error) {
+          return;
+        }
+      } else {
+        fd.append("source_name", selectedSourceMadc.value);
       }
 
       try {
@@ -450,184 +668,374 @@ export default {
             headers: { 'Content-Type': 'multipart/form-data' }
           }
         );
-        uploadMessage.value = response.data.message;
-        fetchJobsStandard();
-        fetchPrograms();
+        uploadMessageMadc.value = response.data.message;
+        fetchJobsMadc();
+        // No need to refetch programs or sources here since createProgram and createSource already did it
       } catch (error) {
-        console.error("There was an error processing the standard upload file:", error);
+        console.error("There was an error processing the MADC upload file:", error);
         if (error.response && error.response.data && error.response.data.detail) {
-          uploadMessage.value = error.response.data.detail;
+          uploadMessageMadc.value = error.response.data.detail;
         } else {
-          uploadMessage.value = "There was an error processing the file.";
+          uploadMessageMadc.value = "There was an error processing the file.";
         }
       }
     };
 
     // -------------------
-    // Submit EAV Upload Data
+    // Submit PAV Upload Data
     // -------------------
-    const submitEavData = async () => {
-      if (!selectedPipelineEav.value) {
-        uploadMessageEav.value = "Please select a species.";
+    const submitPavData = async () => {
+      if (!selectedPipelinePav.value) {
+        uploadMessagePav.value = "Please select a species.";
         return;
       }
 
-      if (!selectedProgramEav.value) {
-        uploadMessageEav.value = "Please select a program.";
+      if (!selectedProgramPav.value) {
+        uploadMessagePav.value = "Please select a program.";
         return;
       }
 
-      if (selectedProgramEav.value === 'new' && !newProgramNameEav.value) {
-        uploadMessageEav.value = "Please enter a name for the new program.";
+      if (selectedProgramPav.value === 'new' && !newProgramNamePav.value) {
+        uploadMessagePav.value = "Please enter a name for the new program.";
         return;
       }
 
       const fd = new FormData();
-      if (selectedFilesEav.value.length > 0) {
+      if (selectedFilesPav.value.length > 0) {
         // Append all selected files
-        selectedFilesEav.value.forEach((file) => {
+        selectedFilesPav.value.forEach((file) => {
           fd.append("file", file);
         });
       } else {
-        uploadMessageEav.value = "No file selected.";
+        uploadMessagePav.value = "No file selected.";
         return;
       }
 
-      fd.append("species", selectedPipelineEav.value);
+      fd.append("species", selectedPipelinePav.value);
 
-      if (selectedProgramEav.value === 'new') {
+      if (selectedProgramPav.value === 'new') {
         try {
-          await createProgramEav(newProgramNameEav.value);
-          fd.append("program_name", newProgramNameEav.value);
+          const newProgram = await createProgram(newProgramNamePav.value.trim());
+          if (typeof newProgram === 'string') {
+            if (newProgram === "There was an error creating the program.") {
+              uploadMessagePav.value = newProgram;
+              return;
+            }
+            fd.append("program_name", newProgram);
+            selectedProgramPav.value = newProgram;
+            newProgramNamePav.value = ""; // Clear input after creation
+            uploadMessagePav.value = "Program created successfully.";
+          }
         } catch (error) {
           return;
         }
       } else {
-        fd.append("program_name", selectedProgramEav.value);
+        fd.append("program_name", selectedProgramPav.value);
       }
 
       try {
         const response = await axiosInstance.post(
-          "/posts/eav_upload/",
+          "/posts/pav_upload/",
           fd,
           {
             headers: { 'Content-Type': 'multipart/form-data' }
           }
         );
-        uploadMessageEav.value = response.data.message;
-        fetchJobsEav();
-        fetchProgramsEav();
+        uploadMessagePav.value = response.data.message;
+        fetchJobsPav();
+        // No need to refetch programs or sources here since createProgram and createSource already did it
       } catch (error) {
-        console.error("There was an error processing the EAV upload file:", error);
+        console.error("There was an error processing the PAV upload file:", error);
         if (error.response && error.response.data && error.response.data.detail) {
-          uploadMessageEav.value = error.response.data.detail;
+          uploadMessagePav.value = error.response.data.detail;
         } else {
-          uploadMessageEav.value = "There was an error processing the file.";
+          uploadMessagePav.value = "There was an error processing the file.";
         }
       }
     };
 
     // -------------------
-    // Submit New Program for Standard Upload
+    // Submit Supplemental Upload Data
     // -------------------
-    const submitNewProgram = async () => {
-      if (!newProgramName.value.trim()) {
-        uploadMessage.value = "Please enter a valid program name.";
+    const submitSupplementalData = async () => {
+      if (!selectedPipelineSupplemental.value) {
+        uploadMessageSupplemental.value = "Please select a species.";
+        return;
+      }
+
+      if (!selectedProgramSupplemental.value) {
+        uploadMessageSupplemental.value = "Please select a program.";
+        return;
+      }
+
+      if (selectedProgramSupplemental.value === 'new' && !newProgramNameSupplemental.value) {
+        uploadMessageSupplemental.value = "Please enter a name for the new program.";
+        return;
+      }
+
+      const fd = new FormData();
+      if (selectedFilesSupplemental.value.length > 0) {
+        // Append all selected files
+        selectedFilesSupplemental.value.forEach((file) => {
+          fd.append("file", file);
+        });
+      } else {
+        uploadMessageSupplemental.value = "No file selected.";
+        return;
+      }
+
+      fd.append("species", selectedPipelineSupplemental.value);
+
+      if (selectedProgramSupplemental.value === 'new') {
+        try {
+          const newProgram = await createProgram(newProgramNameSupplemental.value.trim());
+          if (typeof newProgram === 'string') {
+            if (newProgram === "There was an error creating the program.") {
+              uploadMessageSupplemental.value = newProgram;
+              return;
+            }
+            fd.append("program_name", newProgram);
+            selectedProgramSupplemental.value = newProgram;
+            newProgramNameSupplemental.value = ""; // Clear input after creation
+            uploadMessageSupplemental.value = "Program created successfully.";
+          }
+        } catch (error) {
+          return;
+        }
+      } else {
+        fd.append("program_name", selectedProgramSupplemental.value);
+      }
+
+      try {
+        const response = await axiosInstance.post(
+          "/posts/supplemental_upload/",
+          fd,
+          {
+            headers: { 'Content-Type': 'multipart/form-data' }
+          }
+        );
+        uploadMessageSupplemental.value = response.data.message;
+        fetchJobsSupplemental();
+        // No need to refetch programs or sources here since createProgram and createSource already did it
+      } catch (error) {
+        console.error("There was an error processing the Supplemental upload file:", error);
+        if (error.response && error.response.data && error.response.data.detail) {
+          uploadMessageSupplemental.value = error.response.data.detail;
+        } else {
+          uploadMessageSupplemental.value = "There was an error processing the file.";
+        }
+      }
+    };
+
+    // -------------------
+    // Submit New Program for MADC Upload
+    // -------------------
+    const submitNewProgramMadc = async () => {
+      if (!newProgramNameMadc.value.trim()) {
+        uploadMessageMadc.value = "Please enter a valid program name.";
         return;
       }
 
       try {
-        await createProgram(newProgramName.value.trim());
+        const newProgram = await createProgram(newProgramNameMadc.value.trim());
+        if (typeof newProgram === 'string') {
+          if (newProgram === "There was an error creating the program.") {
+            uploadMessageMadc.value = newProgram;
+            return;
+          }
+          selectedProgramMadc.value = newProgram;
+          newProgramNameMadc.value = ""; // Clear input after creation
+          uploadMessageMadc.value = "Program created successfully.";
+        }
       } catch (error) {
         // Error message is already set in createProgram
       }
     };
 
     // -------------------
-    // Submit New Program for EAV Upload
+    // Submit New Program for PAV Upload
     // -------------------
-    const submitNewProgramEav = async () => {
-      if (!newProgramNameEav.value.trim()) {
-        uploadMessageEav.value = "Please enter a valid program name.";
+    const submitNewProgramPav = async () => {
+      if (!newProgramNamePav.value.trim()) {
+        uploadMessagePav.value = "Please enter a valid program name.";
         return;
       }
 
       try {
-        await createProgramEav(newProgramNameEav.value.trim());
+        const newProgram = await createProgram(newProgramNamePav.value.trim());
+        if (typeof newProgram === 'string') {
+          if (newProgram === "There was an error creating the program.") {
+            uploadMessagePav.value = newProgram;
+            return;
+          }
+          selectedProgramPav.value = newProgram;
+          newProgramNamePav.value = ""; // Clear input after creation
+          uploadMessagePav.value = "Program created successfully.";
+        }
       } catch (error) {
-        // Error message is already set in createProgramEav
+        // Error message is already set in createProgram
       }
     };
 
     // -------------------
-    // Fetch Jobs for Standard Upload
+    // Submit New Program for Supplemental Upload
     // -------------------
-    const fetchJobsStandard = async () => {
+    const submitNewProgramSupplemental = async () => {
+      if (!newProgramNameSupplemental.value.trim()) {
+        uploadMessageSupplemental.value = "Please enter a valid program name.";
+        return;
+      }
+
+      try {
+        const newProgram = await createProgram(newProgramNameSupplemental.value.trim());
+        if (typeof newProgram === 'string') {
+          if (newProgram === "There was an error creating the program.") {
+            uploadMessageSupplemental.value = newProgram;
+            return;
+          }
+          selectedProgramSupplemental.value = newProgram;
+          newProgramNameSupplemental.value = ""; // Clear input after creation
+          uploadMessageSupplemental.value = "Program created successfully.";
+        }
+      } catch (error) {
+        // Error message is already set in createProgram
+      }
+    };
+
+    // -------------------
+    // Submit New Source for MADC Upload
+    // -------------------
+    const submitNewSourceMadc = async () => {
+      if (!newSourceNameMadc.value.trim()) {
+        uploadMessageMadc.value = "Please enter a valid source name.";
+        return;
+      }
+
+      try {
+        const newSource = await createSource(newSourceNameMadc.value.trim());
+        if (typeof newSource === 'string') {
+          if (newSource === "There was an error creating the source.") {
+            uploadMessageMadc.value = newSource;
+            return;
+          }
+          selectedSourceMadc.value = newSource;
+          newSourceNameMadc.value = ""; // Clear input after creation
+          uploadMessageMadc.value = uploadMessageMadc.value
+            ? `${uploadMessageMadc.value} Source created successfully.`
+            : "Source created successfully.";
+        }
+      } catch (error) {
+        // Error message is already set in createSource
+      }
+    };
+
+    // -------------------
+    // Fetch Jobs for MADC Upload
+    // -------------------
+    const fetchJobsMadc = async () => {
       try {
         const response = await axiosInstance.get('/posts/jobStatus');
-        jobsStandard.value = response.data;
+        jobsMadc.value = response.data;
       } catch (error) {
-        console.error("There was an error fetching standard job statuses: ", error);
+        console.error("There was an error fetching MADC job statuses: ", error);
       }
     };
 
     // -------------------
-    // Fetch Jobs for EAV Upload
+    // Fetch Jobs for PAV Upload
     // -------------------
-    const fetchJobsEav = async () => {
+    const fetchJobsPav = async () => {
       try {
-        const response = await axiosInstance.get('/posts/eav_jobStatus');
-        jobsEavList.value = response.data;
+        const response = await axiosInstance.get('/posts/pav_jobStatus');
+        jobsPav.value = response.data;
       } catch (error) {
-        console.error("There was an error fetching EAV job statuses: ", error);
+        console.error("There was an error fetching PAV job statuses: ", error);
       }
     };
 
+    // -------------------
+    // Fetch Jobs for Supplemental Upload
+    // -------------------
+    const fetchJobsSupplemental = async () => {
+      try {
+        const response = await axiosInstance.get('/posts/supplemental_jobStatus');
+        jobsSupplemental.value = response.data;
+      } catch (error) {
+        console.error("There was an error fetching Supplemental job statuses: ", error);
+      }
+    };
 
     // -------------------
-    // Fetch All Jobs on Mount
+    // Fetch All Data on Mount
     // -------------------
     onMounted(() => {
-      fetchJobsStandard();
-      fetchJobsEav();
+      fetchJobsMadc();
+      fetchJobsPav();
+      fetchJobsSupplemental();
       fetchPrograms();
-      fetchProgramsEav();
+      fetchSources();
       // Refresh jobs every 15 seconds
       setInterval(() => {
-        fetchJobsStandard();
-        fetchJobsEav();
+        fetchJobsMadc();
+        fetchJobsPav();
+        fetchJobsSupplemental();
       }, 15000);
     });
 
     return {
-      // Standard Upload
-      selectedFiles,
-      selectedPipeline,
-      selectedProgram,
-      newProgramName,
-      uploadMessage,
+      // Shared
       pipelineOptions,
-      programOptions,
-      handleFileSelect,
-      submitData,
-      submitNewProgram,
-      jobsStandard,
 
-      // EAV Upload
-      selectedFilesEav,
-      selectedPipelineEav,
-      selectedProgramEav,
-      newProgramNameEav,
-      uploadMessageEav,
-      programOptionsEav,
-      handleFileSelectEav,
-      submitEavData,
-      submitNewProgramEav,
-      jobsEavList,
+      // Program Options
+      programOptionsMadc,
+      programOptionsPav,
+      programOptionsSupplemental,
 
-      // Shared Handlers
-      handleProgramChange,
-      handleProgramChangeEav
+      // Source Options
+      sourceOptionsMadc,
+
+      // MADC Upload
+      selectedFilesMadc,
+      selectedPipelineMadc,
+      selectedProgramMadc,
+      newProgramNameMadc,
+      uploadMessageMadc,
+      jobsMadc,
+      selectedSourceMadc,
+      newSourceNameMadc,
+      handleFileSelectMadc,
+      submitMadcData,
+      submitNewProgramMadc,
+      handleProgramChangeMadc,
+      submitNewSourceMadc,
+      handleSourceChangeMadc,
+
+      // PAV Upload
+      selectedFilesPav,
+      selectedPipelinePav,
+      selectedProgramPav,
+      newProgramNamePav,
+      uploadMessagePav,
+      jobsPav,
+      handleFileSelectPav,
+      submitPavData,
+      submitNewProgramPav,
+      handleProgramChangePav,
+
+      // Supplemental Upload
+      selectedFilesSupplemental,
+      selectedPipelineSupplemental,
+      selectedProgramSupplemental,
+      newProgramNameSupplemental,
+      uploadMessageSupplemental,
+      jobsSupplemental,
+      handleFileSelectSupplemental,
+      submitSupplementalData,
+      submitNewProgramSupplemental,
+      handleProgramChangeSupplemental,
+
+      // Debugging
+      // Optionally, expose sourceOptionsMadc for debugging
     };
   }
 };
@@ -654,13 +1062,13 @@ export default {
   gap: 10px;
 }
 
-.pipeline-label, .program-label {
+.pipeline-label, .program-label, .source-label {
   font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
   margin-bottom: 5px;
   /* color: #00796b; */
 }
 
-.new-program-input {
+.new-program-input, .new-source-input {
   margin-top: 10px;
 }
 

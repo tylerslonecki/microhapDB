@@ -27,18 +27,18 @@ services:
     networks:
       - app-network
 
-  microhap-frontend:
-    build:
-      context: ./microhapDB-frontend/
-      dockerfile: Dockerfile
-    ports:
-      - "8080:80"
-    volumes:
-      - ./microhapDB-frontend:/usr/src/app
-    depends_on:
-      - microhap-fastapi
-    networks:
-      - app-network
+#  microhap-frontend:
+#    build:
+#      context: ./microhapDB-frontend/
+#      dockerfile: Dockerfile
+#    ports:
+#      - "8080:80"
+#    volumes:
+#      - ./microhapDB-frontend:/usr/src/app
+#    depends_on:
+#      - microhap-fastapi
+#    networks:
+#      - app-network
 
   pgadmin:
     image: dpage/pgadmin4
