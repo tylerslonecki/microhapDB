@@ -1,73 +1,85 @@
 <template>
   <div class="system-admin-container">
-    <TabView>
+    <TabView class="custom-tabview">
       <!-- Standard Upload Tab -->
-      <TabPanel header="Standard Upload">
-        <div class="upload-section">
-          <!-- Species Database Dropdown -->
-          <div class="dropdown-container">
-            <label for="pipelineSelect" class="pipeline-label">Please select a Species Database</label>
-            <Dropdown 
-              id="pipelineSelect"
-              v-model="selectedPipeline" 
-              :options="pipelineOptions" 
-              optionLabel="label" 
-              optionValue="value" 
-              placeholder="Please select one"
-              class="w-full"
-            />
-          </div>
-
-          <!-- Program Dropdown -->
-          <div class="dropdown-container">
-            <label for="programSelect" class="program-label">Please select or add Program</label>
-            <Dropdown
-              id="programSelect"
-              v-model="selectedProgram"
-              :options="programOptions"
-              optionLabel="name"
-              optionValue="value"
-              placeholder="Please select one"
-              class="w-full"
-              @change="handleProgramChange"
-            />
-            <!-- New Program Input -->
-            <div v-if="selectedProgram === 'new'" class="new-program-input">
-              <InputText v-model="newProgramName" placeholder="Enter new program name" />
-              <Button 
-                label="Create Program" 
-                icon="pi pi-plus" 
-                @click="submitNewProgram"
-                class="mt-2"
+      <TabPanel header="MADC Upload" class="custom-tabpanel">
+        <Panel header="MADC Upload">
+          <!-- Upload Section -->
+          <div class="upload-section">
+            <!-- Species Database Dropdown -->
+            <div class="dropdown-container">
+              <label for="pipelineSelect" class="pipeline-label">Please select a Species Database</label>
+              <Dropdown 
+                id="pipelineSelect"
+                v-model="selectedPipeline" 
+                :options="pipelineOptions" 
+                optionLabel="label" 
+                optionValue="value" 
+                placeholder="Please select one"
+                class="w-full"
               />
+            </div>
+
+            <!-- Program Dropdown -->
+            <div class="dropdown-container">
+              <label for="programSelect" class="program-label">Please select or add Program</label>
+              <Dropdown
+                id="programSelect"
+                v-model="selectedProgram"
+                :options="programOptions"
+                optionLabel="name"
+                optionValue="value"
+                placeholder="Please select one"
+                class="w-full"
+                @change="handleProgramChange"
+              />
+              <!-- New Program Input -->
+              <div v-if="selectedProgram === 'new'" class="new-program-input">
+                <InputText v-model="newProgramName" placeholder="Enter new program name" />
+                <Button 
+                  label="Create Program" 
+                  icon="pi pi-plus" 
+                  @click="submitNewProgram"
+                  class="mt-2"
+                />
+              </div>
+            </div>
+
+            <!-- File Upload Section -->
+            <div class="file-upload-container">
+              <FileUpload
+                mode="basic"
+                chooseLabel="Choose Files"
+                @select="handleFileSelect"
+                :customUpload="true"
+                :auto="false"
+                :multiple="true"
+              />
+              <Button 
+                label="Submit Job" 
+                icon="pi pi-upload" 
+                @click="submitData" 
+                class="upload-button"
+              />
+              <p v-if="uploadMessage">{{ uploadMessage }}</p>
             </div>
           </div>
 
-          <!-- File Upload Section -->
-          <div class="file-upload-container">
-            <FileUpload
-              mode="basic"
-              chooseLabel="Choose Files"
-              @select="handleFileSelect"
-              :customUpload="true"
-              :auto="false"
-              :multiple="true"
-            />
-            <Button 
-              label="Submit Job" 
-              icon="pi pi-upload" 
-              @click="submitData" 
-              class="upload-button"
-            />
-            <p v-if="uploadMessage">{{ uploadMessage }}</p>
-          </div>
-        </div>
+          <!-- Job Status Table for Standard Uploads -->
+          <div class="job-status-section">
+            
+            <DataTable 
+            :value="jobsStandard" 
+            :responsiveLayout="'scroll'" 
+            class="custom-datatable"
+            showGridlines 
+            stripedRows
+            >
+              <!-- Header Slot for Status Title -->
+              <template #header>
+                <span class="table-header">MADC Upload Job Status</span>
+              </template>
 
-        <!-- Job Status Table for Standard Uploads -->
-        <div class="job-status-section">
-          <h2>Standard Upload Job Status</h2>
-          <div class="table-container">
-            <DataTable :value="jobsStandard" :responsiveLayout="'scroll'">
               <Column field="file_name" header="File">
                 <template #body="slotProps">
                   <span>{{ slotProps.data.file_name }}</span>
@@ -78,89 +90,90 @@
                   <span>{{ slotProps.data.status }}</span>
                 </template>
               </Column>
-              <Column field="download" header="Download">
-                <template #body="slotProps">
-                  <Button 
-                    label="Download" 
-                    icon="pi pi-download" 
-                    :disabled="slotProps.data.status !== 'Completed'"
-                    @click="downloadResults(slotProps.data.job_id)" 
-                    class="p-button-success p-mr-2"
-                  />
-                </template>
-              </Column>
             </DataTable>
+            
           </div>
-        </div>
+        </Panel>
       </TabPanel>
 
       <!-- EAV Upload Tab -->
-      <TabPanel header="EAV Upload">
-        <div class="upload-section">
-          <!-- Species Database Dropdown for EAV -->
-          <div class="dropdown-container">
-            <label for="eavPipelineSelect" class="pipeline-label">Please select a Species Database</label>
-            <Dropdown 
-              id="eavPipelineSelect"
-              v-model="selectedPipelineEav" 
-              :options="pipelineOptions" 
-              optionLabel="label" 
-              optionValue="value" 
-              placeholder="Please select one"
-              class="w-full"
-            />
-          </div>
-
-          <!-- Program Dropdown for EAV -->
-          <div class="dropdown-container">
-            <label for="eavProgramSelect" class="program-label">Please select or add Program</label>
-            <Dropdown
-              id="eavProgramSelect"
-              v-model="selectedProgramEav"
-              :options="programOptionsEav"
-              optionLabel="name"
-              optionValue="value"
-              placeholder="Please select one"
-              class="w-full"
-              @change="handleProgramChangeEav"
-            />
-            <!-- New Program Input for EAV -->
-            <div v-if="selectedProgramEav === 'new'" class="new-program-input">
-              <InputText v-model="newProgramNameEav" placeholder="Enter new program name" />
-              <Button 
-                label="Create Program" 
-                icon="pi pi-plus" 
-                @click="submitNewProgramEav"
-                class="mt-2"
+      <TabPanel header="PAV Upload" class="custom-tabpanel">
+        <Panel header="PAV Upload">
+          <!-- Upload Section -->
+          <div class="upload-section">
+            <!-- Species Database Dropdown for EAV -->
+            <div class="dropdown-container">
+              <label for="eavPipelineSelect" class="pipeline-label">Please select a Species Database</label>
+              <Dropdown 
+                id="eavPipelineSelect"
+                v-model="selectedPipelineEav" 
+                :options="pipelineOptions" 
+                optionLabel="label" 
+                optionValue="value" 
+                placeholder="Please select one"
+                class="w-full"
               />
+            </div>
+
+            <!-- Program Dropdown for EAV -->
+            <div class="dropdown-container">
+              <label for="eavProgramSelect" class="program-label">Please select or add Program</label>
+              <Dropdown
+                id="eavProgramSelect"
+                v-model="selectedProgramEav"
+                :options="programOptionsEav"
+                optionLabel="name"
+                optionValue="value"
+                placeholder="Please select one"
+                class="w-full"
+                @change="handleProgramChangeEav"
+              />
+              <!-- New Program Input for EAV -->
+              <div v-if="selectedProgramEav === 'new'" class="new-program-input">
+                <InputText v-model="newProgramNameEav" placeholder="Enter new program name" />
+                <Button 
+                  label="Create Program" 
+                  icon="pi pi-plus" 
+                  @click="submitNewProgramEav"
+                  class="mt-2"
+                />
+              </div>
+            </div>
+
+            <!-- EAV File Upload Section -->
+            <div class="file-upload-container">
+              <FileUpload
+                mode="basic"
+                chooseLabel="Choose Files"
+                @select="handleFileSelectEav"
+                :customUpload="true"
+                :auto="false"
+                :multiple="true"
+              />
+              <Button 
+                label="Submit PAV Job" 
+                icon="pi pi-upload" 
+                @click="submitEavData" 
+                class="upload-button"
+              />
+              <p v-if="uploadMessageEav">{{ uploadMessageEav }}</p>
             </div>
           </div>
 
-          <!-- EAV File Upload Section -->
-          <div class="file-upload-container">
-            <FileUpload
-              mode="basic"
-              chooseLabel="Choose Files"
-              @select="handleFileSelectEav"
-              :customUpload="true"
-              :auto="false"
-              :multiple="true"
-            />
-            <Button 
-              label="Submit EAV Job" 
-              icon="pi pi-upload" 
-              @click="submitEavData" 
-              class="upload-button"
-            />
-            <p v-if="uploadMessageEav">{{ uploadMessageEav }}</p>
-          </div>
-        </div>
+          <!-- Job Status Table for EAV Uploads -->
+          <div class="job-status-section">
+            <DataTable 
+              :value="jobsStandard" 
+              :responsiveLayout="'scroll'" 
+              class="custom-datatable"
+              showGridlines 
+              stripedRows
+              >
+              <!-- Header Slot for Status Title -->
+              <template #header>
+                <span class="table-header">PAV Upload Job Status</span>
+              </template>
 
-        <!-- Job Status Table for EAV Uploads -->
-        <div class="job-status-section">
-          <h2>EAV Upload Job Status</h2>
-          <div class="table-container">
-            <DataTable :value="jobsEavList" :responsiveLayout="'scroll'">
               <Column field="file_name" header="File">
                 <template #body="slotProps">
                   <span>{{ slotProps.data.file_name }}</span>
@@ -171,24 +184,15 @@
                   <span>{{ slotProps.data.status }}</span>
                 </template>
               </Column>
-              <Column field="download" header="Download">
-                <template #body="slotProps">
-                  <Button 
-                    label="Download" 
-                    icon="pi pi-download" 
-                    :disabled="slotProps.data.status !== 'Completed'"
-                    @click="downloadEavResults(slotProps.data.job_id)" 
-                    class="p-button-success p-mr-2"
-                  />
-                </template>
-              </Column>
             </DataTable>
           </div>
-        </div>
+        </Panel>
       </TabPanel>
     </TabView>
   </div>
 </template>
+
+
 
 
 <script>
@@ -205,6 +209,7 @@ import Column from 'primevue/column';
 import InputText from 'primevue/inputtext';
 import TabView from 'primevue/tabview';
 import TabPanel from 'primevue/tabpanel';
+import Panel from 'primevue/panel'; // Import Panel
 
 export default {
   name: 'SystemAdministration',
@@ -216,7 +221,8 @@ export default {
     Column,
     InputText,
     TabView,
-    TabPanel
+    TabPanel,
+    Panel // Register Panel
   },
   computed: {
     ...mapGetters(['isAuthenticated', 'isAdmin']),
@@ -274,14 +280,11 @@ export default {
         // Always add the "Add new program" option
         programOptions.value.push({ name: "Add new program", value: "new" });
 
-        // Update the local programs list
-        // programs.value = fetchedPrograms; // Not needed as we mapped above
-
         // If no existing programs, set selectedProgram to 'new' to show InputText
         if (fetchedPrograms.length === 0) {
           selectedProgram.value = 'new';
         } else {
-          // Optionally, reset to default placeholder if programs exist
+          // Reset to default placeholder if programs exist
           selectedProgram.value = '';
         }
       } catch (error) {
@@ -310,7 +313,7 @@ export default {
         if (fetchedPrograms.length === 0) {
           selectedProgramEav.value = 'new';
         } else {
-          // Optionally, reset to default placeholder if programs exist
+          // Reset to default placeholder if programs exist
           selectedProgramEav.value = '';
         }
       } catch (error) {
@@ -580,43 +583,6 @@ export default {
       }
     };
 
-    // -------------------
-    // Download Results for Standard Upload
-    // -------------------
-    const downloadResults = (jobId) => {
-      axiosInstance.get(`/posts/download/${jobId}`, { responseType: 'blob' })
-        .then(response => {
-          const url = window.URL.createObjectURL(new Blob([response.data]));
-          const link = document.createElement('a');
-          link.href = url;
-          link.setAttribute('download', `${jobId}-results.csv`);
-          document.body.appendChild(link);
-          link.click();
-          link.parentNode.removeChild(link);
-        })
-        .catch(error => {
-          console.error("There was an error downloading the standard results: ", error);
-        });
-    };
-
-    // -------------------
-    // Download Results for EAV Upload
-    // -------------------
-    const downloadEavResults = (jobId) => {
-      axiosInstance.get(`/posts/eav_download/${jobId}`, { responseType: 'blob' })
-        .then(response => {
-          const url = window.URL.createObjectURL(new Blob([response.data]));
-          const link = document.createElement('a');
-          link.href = url;
-          link.setAttribute('download', `${jobId}-eav-results.csv`);
-          document.body.appendChild(link);
-          link.click();
-          link.parentNode.removeChild(link);
-        })
-        .catch(error => {
-          console.error("There was an error downloading the EAV results: ", error);
-        });
-    };
 
     // -------------------
     // Fetch All Jobs on Mount
@@ -633,8 +599,6 @@ export default {
       }, 15000);
     });
 
-    // No need for onBeforeUnmount unless cleaning up intervals, but using setInterval directly is acceptable
-
     return {
       // Standard Upload
       selectedFiles,
@@ -648,7 +612,6 @@ export default {
       submitData,
       submitNewProgram,
       jobsStandard,
-      downloadResults,
 
       // EAV Upload
       selectedFilesEav,
@@ -661,7 +624,6 @@ export default {
       submitEavData,
       submitNewProgramEav,
       jobsEavList,
-      downloadEavResults,
 
       // Shared Handlers
       handleProgramChange,
@@ -670,6 +632,7 @@ export default {
   }
 };
 </script>
+
 
 
 <style scoped>
@@ -694,7 +657,7 @@ export default {
 .pipeline-label, .program-label {
   font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
   margin-bottom: 5px;
-  color: #00796b;
+  /* color: #00796b; */
 }
 
 .new-program-input {
@@ -705,14 +668,22 @@ export default {
   margin-top: 10px;
 }
 
+/* Remove h2 styles since we're not using h2 headers anymore */
+/*
 .job-status-section h2 {
   color: #00796b; 
   text-align: center;
   margin-bottom: 30px;
 }
+*/
 
 .table-container {
   width: 100%;
+}
+
+.table-header {
+  font-size: 1.25rem;
+  font-weight: bold;
 }
 
 .p-button-success {
@@ -724,4 +695,3 @@ export default {
   margin-top: 20px;
 }
 </style>
-

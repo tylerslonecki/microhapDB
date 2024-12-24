@@ -6,7 +6,23 @@ export default createStore({
     isAuthenticated: false,
     isAdmin: false,
     username: null,
-    selectedSequences: []
+    selectedSequences: [],
+    // New state properties for Query component
+    query: {
+      species: '',
+      filters: {
+        global: { value: null, matchMode: 'contains' },
+        alleleid: { value: null, matchMode: 'contains' },
+        info: { value: null, matchMode: 'contains' },
+        associated_trait: { value: null, matchMode: 'contains' },
+        allelesequence: { value: null, matchMode: 'contains' }
+      },
+      page: 1,
+      size: 25,
+      sequences: [],
+      total: 0,
+      associatedTraits: ['drought resistance', 'anthracnose race1 resistance']
+    }
   },
   mutations: {
     setAuthState(state, { isAuthenticated, isAdmin, username }) {
@@ -19,8 +35,29 @@ export default createStore({
       state.isAdmin = false;
       state.username = null;
     },
-    setSelectedSequences(state, sequences) { // Correct placement
+    setSelectedSequences(state, sequences) {
       state.selectedSequences = sequences;
+    },
+    // New mutations for Query state
+    setQueryState(state, payload) {
+      state.query = { ...state.query, ...payload };
+    },
+    resetQueryState(state) {
+      state.query = {
+        species: '',
+        filters: {
+          global: { value: null, matchMode: 'contains' },
+          alleleid: { value: null, matchMode: 'contains' },
+          info: { value: null, matchMode: 'contains' },
+          associated_trait: { value: null, matchMode: 'contains' },
+          allelesequence: { value: null, matchMode: 'contains' }
+        },
+        page: 1,
+        size: 25,
+        sequences: [],
+        total: 0,
+        associatedTraits: ['drought resistance', 'anthracnose race1 resistance']
+      };
     }
   },
   actions: {
@@ -63,12 +100,21 @@ export default createStore({
     },
     updateSelectedSequences({ commit }, sequences) {
       commit('setSelectedSequences', sequences);
+    },
+    // New actions for Query state
+    updateQueryState({ commit }, payload) {
+      commit('setQueryState', payload);
+    },
+    resetQueryState({ commit }) {
+      commit('resetQueryState');
     }
   },
   getters: {
     isAuthenticated: state => state.isAuthenticated,
     isAdmin: state => state.isAdmin,
     username: state => state.username,
-    getSelectedSequences: (state) => state.selectedSequences
+    getSelectedSequences: (state) => state.selectedSequences,
+    // New getters for Query state
+    getQueryState: (state) => state.query
   }
 });

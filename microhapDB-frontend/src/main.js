@@ -15,6 +15,7 @@ import Paginator from 'primevue/paginator';
 import FileUpload from 'primevue/fileupload';
 import ToastService from 'primevue/toastservice';
 import Toast from 'primevue/toast';
+import Tooltip from 'primevue/tooltip';
 
 // PrimeVue styles
 import 'primevue/resources/themes/lara-light-green/theme.css';  
@@ -40,6 +41,7 @@ app.component('Column', Column);
 app.component('Paginator', Paginator);
 app.component('FileUpload', FileUpload);
 app.component('Toast', Toast);
+app.directive('tooltip', Tooltip);
 
 
 app.mount('#app');

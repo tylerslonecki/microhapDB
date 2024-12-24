@@ -41,30 +41,41 @@
           </div>
         </div>
         
-        <!-- View Details Button -->
+        <!-- View Details Button with Selected Count -->
         <div class="flex items-center">
+          <!-- View Details Button -->
           <Button 
             label="View Details" 
             icon="pi pi-arrow-right" 
             :disabled="!selectedSequences.length"
             @click="navigateToDetails" 
           />
+          
+          <!-- Selected Count Display -->
+          <div 
+            v-if="selectedSequences.length" 
+            class="ml-2 text-base text-gray-700 selected-count"
+          >
+            ( Selected Alleles: {{ selectedSequences.length }} )
+          </div>
         </div>
-        
       </div>
       
       <!-- DataTable for Detailed Information -->
       <DataTable 
+        :first="first"
         v-model:selection="selectedSequences"
         :value="sequences" 
         :filters="filters"
         :filterDisplay="'row'"
         :loading="loading"
         :paginator="true" 
+        paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
+        :rowsPerPageOptions="[10, 25, 50]"
+        currentPageReportTemplate="Showing {first} to {last} of {totalRecords} accessions"
         :rows="size" 
         :totalRecords="total"
         :lazy="true"
-        :rowsPerPageOptions="[10, 25, 50]"
         showGridlines 
         stripedRows
         @page="onPageChange"
@@ -74,14 +85,30 @@
         :emptyMessage="'No data available. Please adjust your filters or select a species.'"
         selectionMode="multiple" 
         dataKey="uniqueKey" 
+        paginatorPosition="both"
       > 
+        <!-- Paginator Start Slot -->
         <template #paginatorstart>
-          <Button type="button" icon="pi pi-refresh" text @click="refreshTable" />
+          <Button 
+            type="button" 
+            icon="pi pi-refresh" 
+            text 
+            @click="refreshTable" 
+            v-tooltip="{ value: 'Refresh', showDelay: 1000, hideDelay: 300 }" placeholder="Right"
+          />
         </template>
+        
+        <!-- Paginator End Slot -->
         <template #paginatorend>
-          <Button type="button" icon="pi pi-download" text @click="downloadSequences" />
+          <Button 
+            type="button" 
+            icon="pi pi-download" 
+            text 
+            @click="downloadSequences" 
+            v-tooltip.left="{ value: 'Download as .CSV', showDelay: 1000, hideDelay: 300 }" placeholder="Left"
+          />
         </template>
-
+        
         <!-- Selection Checkbox Column -->
         <Column 
           selectionMode="multiple" 
@@ -180,8 +207,9 @@ import InputText from 'primevue/inputtext';
 import Button from 'primevue/button';
 import IconField from 'primevue/iconfield';
 import InputIcon from 'primevue/inputicon';
-import Panel from 'primevue/panel'; // Import Panel component
-import { mapActions } from 'vuex';
+import Panel from 'primevue/panel';
+import Tooltip from 'primevue/tooltip'; // Import Tooltip directive
+import { mapActions, mapGetters } from 'vuex';
 
 export default {
   name: 'Query',
@@ -193,40 +221,75 @@ export default {
     Button,
     IconField,
     InputIcon,
-    Panel // Register Panel component
+    Panel
+  },
+  directives: {
+    tooltip: Tooltip // Register Tooltip directive
+  },
+  computed: {
+    ...mapGetters(['getSelectedSequences', 'getQueryState']),
+    
+    // Bind component's data to Vuex store state
+    species: {
+      get() {
+        return this.getQueryState.species;
+      },
+      set(value) {
+        this.updateQueryState({ species: value });
+      }
+    },
+    filters: {
+      get() {
+        return this.getQueryState.filters;
+      },
+      set(value) {
+        this.updateQueryState({ filters: value });
+      }
+    },
+    page() {
+      return this.getQueryState.page;
+    },
+    size() {
+      return this.getQueryState.size;
+    },
+    sequences() {
+      return this.getQueryState.sequences;
+    },
+    total() {
+      return this.getQueryState.total;
+    },
+    associatedTraits() {
+      return this.getQueryState.associatedTraits;
+    },
+    selectedSequences: {
+      get() {
+        return this.getSelectedSequences;
+      },
+      set(value) {
+        this.updateSelectedSequences(value);
+      }
+    },
+    first() {
+      return (this.page - 1) * this.size;
+    }
   },
   data() {
     return {
-      sequences: [],
-      selectedSequences: [], // For row selection
-      total: 0,
-      page: 1, // Initialize to 1 for 1-based indexing
-      size: 25,
-      species: '',
-      loading: false,
       speciesOptions: [
         { label: 'Sweetpotato', value: 'sweetpotato' },
         { label: 'Blueberry', value: 'blueberry' },
         { label: 'Alfalfa', value: 'alfalfa' },
         { label: 'Cranberry', value: 'cranberry' }
       ],
-      filters: {
-        global: { value: null, matchMode: 'contains' },
-        alleleid: { value: null, matchMode: 'contains' },
-        info: { value: null, matchMode: 'contains' }, // New filter
-        associated_trait: { value: null, matchMode: 'contains' }, // New filter
-        allelesequence: { value: null, matchMode: 'contains' }
-      },
-      associatedTraits: ['drought resistance', 'anthracnose race1 resistance'] // List of associated traits
+      loading: false
     };
   },
   methods: {
-    ...mapActions(['updateSelectedSequences']),
+    ...mapActions(['updateSelectedSequences', 'updateQueryState', 'resetQueryState']),
+    
     async fetchSequences() {
       if (!this.species) {
-        this.sequences = [];
-        this.total = 0;
-        this.loading = false;
+        this.updateQueryState({ sequences: [], total: 0 });
         return;
       }
 
@@ -251,78 +314,96 @@ export default {
           globalFilter: this.filters.global.value,
           filters: activeFilters
         });
-        this.sequences = response.data.items;
-        this.total = response.data.total;
+        // Update sequences and total in Vuex store
+        this.updateQueryState({
+          sequences: response.data.items,
+          total: response.data.total
+        });
 
         // Assign dummy data to "Info" and "Associated Traits" columns
         this.assignDummyData();
       } catch (error) {
         console.error("Error fetching sequences:", error);
         // Optionally, set an error state to display a message to the user
-        this.sequences = [];
-        this.total = 0;
+        this.updateQueryState({ sequences: [], total: 0 });
       } finally {
         this.loading = false;
       }
     },
     assignDummyData() {
       // Assign dummy data based on row index
-      this.sequences.forEach((sequence, index) => {
-        // Assign "likely paralogous" to "Info" every 7th row
-        if ((index + 1) % 6 === 0) {
-          sequence.info = "likely paralogous";
-        } else {
-          sequence.info = ""; // Or any default value
-        }
+      const updatedSequences = this.sequences.map((sequence, index) => {
+        // Assign "likely paralogous" to "Info" every 6th row
+        sequence.info = ((index + 1) % 6 === 0) ? "likely paralogous" : "";
 
-        // Assign associated traits every 10th row
+        // Assign associated traits every 5th row
         if ((index + 1) % 5 === 0) {
-          // Alternate between the two traits
-          const traitIndex = Math.floor((index + 1) / 10) % this.associatedTraits.length;
+          const traitIndex = Math.floor((index + 1) / 5) % this.associatedTraits.length;
           sequence.associated_trait = this.associatedTraits[traitIndex];
         } else {
-          sequence.associated_trait = ""; // Or any default value
+          sequence.associated_trait = "";
         }
 
         // Ensure each sequence has a uniqueKey for dataKey
         sequence.uniqueKey = `${sequence.alleleid}-${sequence.allelesequence}-${index}`;
+
+        return sequence;
       });
+
+      // Update sequences in Vuex store
+      this.updateQueryState({ sequences: updatedSequences });
     },
     onPageChange(event) {
       // PrimeVue uses zero-based indexing for pages
-      this.page = event.page + 1;
-      this.size = event.rows;
+      const newPage = event.page + 1;
+      this.updateQueryState({ page: newPage, size: event.rows });
       this.fetchSequences();
     },
     onFilter(event) {
-      this.filters = event.filters;
-      this.page = 1; 
+      // Reset selected sequences when filters change
+      this.updateSelectedSequences([]);
+
+      // Update filters and reset to first page
+      this.updateQueryState({ filters: event.filters, page: 1 });
       this.fetchSequences();
     },
     onSpeciesChange() {
-      this.page = 1; 
+      // Reset selected sequences when species changes
+      this.updateSelectedSequences([]);
+
+      // Reset page to 1 and fetch new sequences
+      this.updateQueryState({ page: 1 });
       this.fetchSequences();
     },
     onGlobalFilter() {
-      this.page = 1;
+      // Reset selected sequences when global filter changes
+      this.updateSelectedSequences([]);
+
+      // Reset page to 1 and fetch new sequences
+      this.updateQueryState({ page: 1 });
       this.fetchSequences();
     },
     refreshTable() {
+      // Reset selected sequences
+      this.updateSelectedSequences([]);
+
       // Reset only the global and column-specific filters
-      this.filters.global.value = null;
-      this.filters.alleleid.value = null;
-      this.filters.info.value = null; // Reset new filter
-      this.filters.associated_trait.value = null; // Reset new filter
-      this.filters.allelesequence.value = null;
+      this.updateQueryState({
+        filters: {
+          global: { value: null, matchMode: 'contains' },
+          alleleid: { value: null, matchMode: 'contains' },
+          info: { value: null, matchMode: 'contains' },
+          associated_trait: { value: null, matchMode: 'contains' },
+          allelesequence: { value: null, matchMode: 'contains' }
+        },
+        page: 1
+      });
 
-      this.page = 1;
-
+      // Fetch the sequences with reset filters and page
       this.fetchSequences();
     },
     navigateToDetails() {
-      // Store selected sequences in Vuex
-      this.updateSelectedSequences(this.selectedSequences);
-      
+      // Store selected sequences in Vuex (already handled via v-model)
       // Navigate to the Details component
       this.$router.push({ name: 'Details' });
     },
@@ -361,7 +442,32 @@ export default {
     }
   },
   mounted() {
-    this.fetchSequences();
+    // If Query state exists in Vuex, fetch sequences based on it
+    if (this.getQueryState.species) {
+      this.fetchSequences();
+    }
+  },
+  watch: {
+    // Watch for changes in species and fetch sequences accordingly
+    species(newVal, oldVal) {
+      if (newVal !== oldVal) {
+        // Reset selected sequences when species changes
+        this.updateSelectedSequences([]);
+
+        this.updateQueryState({ page: 1 }); // Reset to first page
+        this.fetchSequences();
+      }
+    },
+    // Watch for changes in filters and fetch sequences accordingly
+    filters: {
+      handler() {
+        // Reset selected sequences when filters change
+        this.updateSelectedSequences([]);
+
+        this.fetchSequences();
+      },
+      deep: true
+    }
   }
 };
 </script>
@@ -411,6 +517,18 @@ export default {
   .filter-row .w-60 {
     width: 100%; /* Make inputs full width on small screens */
   }
+
+  /* Stack button and count vertically */
+  .filter-row .flex.items-center {
+    flex-direction: column;
+    align-items: flex-start; /* or center */
+  }
+
+  /* Adjust margin for small screens */
+  .filter-row .flex.items-center .ml-4 {
+    margin-left: 0;
+    margin-top: 0.5rem; /* Adds space above the count */
+  }
 }
 
 /* Centering the label and dropdown */
@@ -418,5 +536,26 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.selected-count {
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  /* Optional: Adjust line-height if necessary */
+  line-height: 1.5;
+}
+
+
+/* Hover effect for the count display */
+.selected-count:hover {
+  color: #4A5568; /* Darker gray on hover */
+  transition: color 0.3s ease;
+}
+
+/* Prevent tooltip text from wrapping */
+::v-deep .p-tooltip {
+  white-space: nowrap;
+  max-width: none; /* Optional: Remove max-width to prevent wrapping */
 }
 </style>
