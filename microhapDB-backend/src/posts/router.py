@@ -12,7 +12,8 @@ from .models import Sequence, Accession, AllelePresence, get_session, UploadBatc
     SequencePresence, \
     JobStatusResponse, \
     QueryRequest, PaginatedSequenceResponse, SequenceResponse, PaginatedSequenceRequest, \
-    AsyncSessionLocal, ColumnFilter, AccessionResponse, AccessionRequest, Source, SourceResponse, SourceCreate
+    AsyncSessionLocal, ColumnFilter, AccessionResponse, AccessionRequest, Source, SourceResponse, SourceCreate, \
+    SupplementalJobStatusResponse
 from .service import get_all_batch_summaries, get_new_sequences_for_batch, get_total_unique_sequences, \
     generate_upset_plot, generate_line_chart, generate_line_chart_data
 import pandas as pd
@@ -36,6 +37,7 @@ cached_report = None
 
 jobs = {}
 jobs_eav = {}
+jobs_supplemental = {}
 
 
 def is_safe_query(query: str) -> bool:
@@ -773,3 +775,131 @@ async def create_source(source: SourceCreate, db: AsyncSession = Depends(get_ses
         raise HTTPException(status_code=500, detail="Failed to create source due to a database error.")
 
     return new_source
+
+
+@router.post("/supplemental_upload/")
+async def upload_supplemental_data(
+        request: Request,
+        file: UploadFile = File(...),
+        species: str = Form(...),
+        background_tasks: BackgroundTasks = BackgroundTasks(),
+        db: AsyncSession = Depends(get_session)
+):
+    """
+    Endpoint to upload supplemental data CSV.
+    """
+    # Validate file type
+    if file.content_type != "text/csv":
+        raise HTTPException(status_code=400, detail="Only CSV files are supported for supplemental uploads.")
+
+    # Generate a unique job ID
+    job_id = str(uuid.uuid4())
+
+    # Read file contents
+    contents = await file.read()
+
+    # Initialize job status
+    jobs_supplemental[job_id] = {
+        'status': 'Processing',
+        'submission_time': datetime.utcnow(),
+        'file_name': file.filename,
+        'missing_allele_ids': []
+    }
+
+    # Start background task
+    asyncio.create_task(process_supplemental_upload(
+        file_data=contents,
+        job_id=job_id,
+        species=species
+    ))
+
+    return {"job_id": job_id, "message": "Supplemental processing started. Check job status."}
+
+
+async def process_supplemental_upload(file_data: bytes, job_id: str, species: str):
+    """
+    Background task to process supplemental upload CSV.
+    """
+    async with AsyncSessionLocal() as db:
+        try:
+            # Read the CSV file into a DataFrame
+            df = pd.read_csv(io.StringIO(file_data.decode('utf-8')), header=0, low_memory=False)
+
+            # Validate CSV columns
+            required_columns = {"AlleleID", "INFO", "Associated Trait"}
+            if not required_columns.issubset(df.columns):
+                missing = required_columns - set(df.columns)
+                raise HTTPException(status_code=400, detail=f"Missing columns: {', '.join(missing)}")
+
+            missing_allele_ids = []
+            for index, row in df.iterrows():
+                alleleid = row['AlleleID']
+                info = row['INFO']
+                associated_trait = row['Associated Trait']
+
+                if not alleleid:
+                    # Optionally, log or skip rows with missing AlleleID
+                    logging.warning(f"Row {index + 1} skipped: Missing AlleleID.")
+                    continue
+
+                # Handle NaN values by converting them to None
+                info = row['INFO'] if pd.notna(row['INFO']) else None
+                associated_trait = row['Associated Trait'] if pd.notna(row['Associated Trait']) else None
+
+                # Check if AlleleID exists in the Sequence table for the species
+                stmt = select(Sequence).where(
+                    Sequence.alleleid == alleleid,
+                    Sequence.species == species
+                )
+                result = await db.execute(stmt)
+                sequence_entry = result.scalar_one_or_none()
+
+                if sequence_entry:
+                    # Update INFO and Associated Trait
+                    sequence_entry.info = info
+                    sequence_entry.associated_trait = associated_trait
+                    db.add(sequence_entry)
+                else:
+                    # Collect missing AlleleIDs
+                    missing_allele_ids.append(alleleid)
+
+            # Commit the updates
+            await db.commit()
+
+            # Update job status
+            jobs_supplemental[job_id]['status'] = 'Completed'
+            jobs_supplemental[job_id]['completion_time'] = datetime.utcnow()
+            jobs_supplemental[job_id]['missing_allele_ids'] = missing_allele_ids
+
+            if missing_allele_ids:
+                logging.info(f"Supplemental job {job_id} completed with missing AlleleIDs: {missing_allele_ids}")
+            else:
+                logging.info(f"Supplemental job {job_id} completed successfully with no missing AlleleIDs.")
+        except HTTPException as he:
+            await db.rollback()
+            jobs_supplemental[job_id]['status'] = 'Failed'
+            jobs_supplemental[job_id]['error'] = he.detail
+            logging.error(f"Error processing supplemental job {job_id}: {he.detail}")
+        except Exception as e:
+            await db.rollback()
+            jobs_supplemental[job_id]['status'] = 'Failed'
+            jobs_supplemental[job_id]['error'] = str(e)
+            logging.error(f"Error processing supplemental job {job_id}: {str(e)}")
+
+@router.get("/supplemental_jobStatus", response_model=List[SupplementalJobStatusResponse])
+async def list_supplemental_jobs():
+    """
+    Endpoint to list all supplemental upload jobs and their statuses, including missing AlleleIDs.
+    """
+    job_list = [{
+        "job_id": job_id,
+        "status": job['status'],
+        "submission_time": job['submission_time'],
+        "completion_time": job.get('completion_time'),
+        "file_name": job.get('file_name'),
+        "missing_allele_ids": job.get('missing_allele_ids'),
+        "error": job.get('error')
+    } for job_id, job in jobs_supplemental.items()]
+
+    return job_list
+

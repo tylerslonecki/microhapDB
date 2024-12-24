@@ -236,32 +236,6 @@
               />
             </div>
 
-            <!-- Program Dropdown for Supplemental -->
-            <div class="dropdown-container">
-              <label for="programSelectSupplemental" class="program-label">Please select or add Program/Owner</label>
-              <Dropdown
-                id="programSelectSupplemental"
-                v-model="selectedProgramSupplemental"
-                :options="programOptionsSupplemental"
-                optionLabel="name"
-                optionValue="value"
-                placeholder="Please select one"
-                class="w-full"
-                @change="handleProgramChangeSupplemental"
-              />
-              <!-- New Program Input for Supplemental -->
-              <div v-if="selectedProgramSupplemental === 'new'" class="new-program-input">
-                <InputText v-model="newProgramNameSupplemental" placeholder="Enter new program name" />
-                <Button 
-                  label="Create Program" 
-                  icon="pi pi-plus" 
-                  @click="submitNewProgramSupplemental"
-                  class="mt-2"
-                />
-              </div>
-            </div>
-
-
             <!-- Supplemental File Upload Section -->
             <div class="file-upload-container">
               <FileUpload
@@ -363,7 +337,6 @@ export default {
 
     const programOptionsMadc = ref([]);
     const programOptionsPav = ref([]);
-    const programOptionsSupplemental = ref([]);
 
     // Initialize sourceOptionsMadc with "Add new source" option
     const sourceOptionsMadc = ref([
@@ -400,8 +373,6 @@ export default {
     // -------------------
     const selectedFilesSupplemental = ref([]);
     const selectedPipelineSupplemental = ref("");
-    const selectedProgramSupplemental = ref("");
-    const newProgramNameSupplemental = ref("");
     const uploadMessageSupplemental = ref(null);
     const jobsSupplemental = ref([]);
 
@@ -423,18 +394,15 @@ export default {
         // Update program options for each upload tab
         programOptionsMadc.value = [...mappedPrograms, { name: "Add new program", value: "new" }];
         programOptionsPav.value = [...mappedPrograms, { name: "Add new program", value: "new" }];
-        programOptionsSupplemental.value = [...mappedPrograms, { name: "Add new program", value: "new" }];
 
         // If no existing programs, set selectedProgram to 'new' to show InputText
         if (fetchedPrograms.length === 0) {
           selectedProgramMadc.value = 'new';
           selectedProgramPav.value = 'new';
-          selectedProgramSupplemental.value = 'new';
         } else {
           // Reset to default placeholder if programs exist
           selectedProgramMadc.value = '';
           selectedProgramPav.value = '';
-          selectedProgramSupplemental.value = '';
         }
       } catch (error) {
         console.error("Error fetching programs:", error);
@@ -488,16 +456,6 @@ export default {
     const handleProgramChangePav = () => {
       if (selectedProgramPav.value === 'new') {
         // Optionally, focus on the newProgramNamePav input
-        // Or perform other actions
-      }
-    };
-
-    // -------------------
-    // Handle Program Change for Supplemental Upload
-    // -------------------
-    const handleProgramChangeSupplemental = () => {
-      if (selectedProgramSupplemental.value === 'new') {
-        // Optionally, focus on the newProgramNameSupplemental input
         // Or perform other actions
       }
     };
@@ -763,16 +721,6 @@ export default {
         return;
       }
 
-      if (!selectedProgramSupplemental.value) {
-        uploadMessageSupplemental.value = "Please select a program.";
-        return;
-      }
-
-      if (selectedProgramSupplemental.value === 'new' && !newProgramNameSupplemental.value) {
-        uploadMessageSupplemental.value = "Please enter a name for the new program.";
-        return;
-      }
-
       const fd = new FormData();
       if (selectedFilesSupplemental.value.length > 0) {
         // Append all selected files
@@ -786,25 +734,6 @@ export default {
 
       fd.append("species", selectedPipelineSupplemental.value);
 
-      if (selectedProgramSupplemental.value === 'new') {
-        try {
-          const newProgram = await createProgram(newProgramNameSupplemental.value.trim());
-          if (typeof newProgram === 'string') {
-            if (newProgram === "There was an error creating the program.") {
-              uploadMessageSupplemental.value = newProgram;
-              return;
-            }
-            fd.append("program_name", newProgram);
-            selectedProgramSupplemental.value = newProgram;
-            newProgramNameSupplemental.value = ""; // Clear input after creation
-            uploadMessageSupplemental.value = "Program created successfully.";
-          }
-        } catch (error) {
-          return;
-        }
-      } else {
-        fd.append("program_name", selectedProgramSupplemental.value);
-      }
 
       try {
         const response = await axiosInstance.post(
@@ -871,31 +800,6 @@ export default {
           selectedProgramPav.value = newProgram;
           newProgramNamePav.value = ""; // Clear input after creation
           uploadMessagePav.value = "Program created successfully.";
-        }
-      } catch (error) {
-        // Error message is already set in createProgram
-      }
-    };
-
-    // -------------------
-    // Submit New Program for Supplemental Upload
-    // -------------------
-    const submitNewProgramSupplemental = async () => {
-      if (!newProgramNameSupplemental.value.trim()) {
-        uploadMessageSupplemental.value = "Please enter a valid program name.";
-        return;
-      }
-
-      try {
-        const newProgram = await createProgram(newProgramNameSupplemental.value.trim());
-        if (typeof newProgram === 'string') {
-          if (newProgram === "There was an error creating the program.") {
-            uploadMessageSupplemental.value = newProgram;
-            return;
-          }
-          selectedProgramSupplemental.value = newProgram;
-          newProgramNameSupplemental.value = ""; // Clear input after creation
-          uploadMessageSupplemental.value = "Program created successfully.";
         }
       } catch (error) {
         // Error message is already set in createProgram
@@ -989,7 +893,6 @@ export default {
       // Program Options
       programOptionsMadc,
       programOptionsPav,
-      programOptionsSupplemental,
 
       // Source Options
       sourceOptionsMadc,
@@ -1025,14 +928,10 @@ export default {
       // Supplemental Upload
       selectedFilesSupplemental,
       selectedPipelineSupplemental,
-      selectedProgramSupplemental,
-      newProgramNameSupplemental,
       uploadMessageSupplemental,
       jobsSupplemental,
       handleFileSelectSupplemental,
-      submitSupplementalData,
-      submitNewProgramSupplemental,
-      handleProgramChangeSupplemental,
+      submitSupplementalData
 
       // Debugging
       // Optionally, expose sourceOptionsMadc for debugging

@@ -320,8 +320,7 @@ export default {
           total: response.data.total
         });
 
-        // Assign dummy data to "Info" and "Associated Traits" columns
-        this.assignDummyData();
+        // Removed dummy data assignment
       } catch (error) {
         console.error("Error fetching sequences:", error);
         // Optionally, set an error state to display a message to the user
@@ -329,29 +328,6 @@ export default {
       } finally {
         this.loading = false;
       }
-    },
-    assignDummyData() {
-      // Assign dummy data based on row index
-      const updatedSequences = this.sequences.map((sequence, index) => {
-        // Assign "likely paralogous" to "Info" every 6th row
-        sequence.info = ((index + 1) % 6 === 0) ? "likely paralogous" : "";
-
-        // Assign associated traits every 5th row
-        if ((index + 1) % 5 === 0) {
-          const traitIndex = Math.floor((index + 1) / 5) % this.associatedTraits.length;
-          sequence.associated_trait = this.associatedTraits[traitIndex];
-        } else {
-          sequence.associated_trait = "";
-        }
-
-        // Ensure each sequence has a uniqueKey for dataKey
-        sequence.uniqueKey = `${sequence.alleleid}-${sequence.allelesequence}-${index}`;
-
-        return sequence;
-      });
-
-      // Update sequences in Vuex store
-      this.updateQueryState({ sequences: updatedSequences });
     },
     onPageChange(event) {
       // PrimeVue uses zero-based indexing for pages

@@ -5,7 +5,8 @@ from sqlalchemy import create_engine
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict
 from datetime import datetime
-from src.models import Base, Sequence, Accession, AllelePresence, UploadBatch, SequenceLog, Program, Source, SequencePresence, DATABASE_URL
+from src.models import Base, Sequence, Accession, AllelePresence, UploadBatch, SequenceLog, Program, Source, \
+    SequencePresence, DATABASE_URL
 
 
 class JobStatusResponse(BaseModel):
@@ -50,16 +51,20 @@ class PaginatedSequenceResponse(BaseModel):
 class AccessionRequest(BaseModel):
     alleleid: List[str] = Field(..., example=["allele1", "allele2"])
 
+
 class AccessionResponse(BaseModel):
     alleleid: str
     accessions: List[str]
+
 
 class SourceBase(BaseModel):
     name: str = Field(..., example="Source Name")
     description: Optional[str] = Field(None, example="Description of the source")
 
+
 class SourceCreate(SourceBase):
     pass
+
 
 class SourceResponse(SourceBase):
     id: int
@@ -67,6 +72,7 @@ class SourceResponse(SourceBase):
 
     class Config:
         orm_mode = True
+
 
 class ProgramResponse(BaseModel):
     id: int
@@ -78,10 +84,24 @@ class ProgramResponse(BaseModel):
     class Config:
         orm_mode = True
 
+
 class ProgramCreate(BaseModel):
     name: str = Field(..., example="Program Name")
     description: Optional[str] = Field(None, example="Description of the program")
     source_ids: Optional[List[int]] = Field(None, example=[1, 2])  # To associate sources upon creation
+
+
+class SupplementalJobStatusResponse(BaseModel):
+    job_id: str
+    status: str
+    submission_time: datetime
+    completion_time: Optional[datetime] = None
+    file_name: Optional[str] = None
+    missing_allele_ids: Optional[List[str]] = None
+    error: Optional[str] = None
+
+    class Config:
+        orm_mode = True
 
 
 # Create an asynchronous engine
