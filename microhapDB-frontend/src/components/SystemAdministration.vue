@@ -1,5 +1,8 @@
 <template>
   <div class="system-admin-container">
+    <!-- Add ConfirmDialog here -->
+    <ConfirmDialog />
+
     <TabView class="custom-tabview">
       <!-- MADC Upload Tab -->
       <TabPanel header="MADC Upload" class="custom-tabpanel">
@@ -84,10 +87,11 @@
                 :auto="false"
                 :multiple="true"
               />
+              <!-- Modify the @click to use confirmSubmitMadcData -->
               <Button 
                 label="Submit Job" 
                 icon="pi pi-upload" 
-                @click="submitMadcData" 
+                @click="confirmSubmitMadcData" 
                 class="upload-button"
               />
               <p v-if="uploadMessageMadc">{{ uploadMessageMadc }}</p>
@@ -167,7 +171,6 @@
               </div>
             </div>
 
-
             <!-- PAV File Upload Section -->
             <div class="file-upload-container">
               <FileUpload
@@ -178,10 +181,11 @@
                 :auto="false"
                 :multiple="true"
               />
+              <!-- Modify the @click to use confirmSubmitPavData -->
               <Button 
                 label="Submit PAV Job" 
                 icon="pi pi-upload" 
-                @click="submitPavData" 
+                @click="confirmSubmitPavData" 
                 class="upload-button"
               />
               <p v-if="uploadMessagePav">{{ uploadMessagePav }}</p>
@@ -246,10 +250,11 @@
                 :auto="false"
                 :multiple="true"
               />
+              <!-- Modify the @click to use confirmSubmitSupplementalData -->
               <Button 
                 label="Submit Supplemental Job" 
                 icon="pi pi-upload" 
-                @click="submitSupplementalData" 
+                @click="confirmSubmitSupplementalData" 
                 class="upload-button"
               />
               <p v-if="uploadMessageSupplemental">{{ uploadMessageSupplemental }}</p>
@@ -288,7 +293,6 @@
   </div>
 </template>
 
-
 <script>
 import { ref, onMounted } from 'vue';
 import axiosInstance from '../axiosConfig';
@@ -304,6 +308,8 @@ import InputText from 'primevue/inputtext';
 import TabView from 'primevue/tabview';
 import TabPanel from 'primevue/tabpanel';
 import Panel from 'primevue/panel'; // Import Panel
+import { useConfirm } from 'primevue/useconfirm';
+import ConfirmDialog from 'primevue/confirmdialog'; // Import ConfirmDialog
 
 export default {
   name: 'SystemAdministration',
@@ -316,7 +322,8 @@ export default {
     InputText,
     TabView,
     TabPanel,
-    Panel // Register Panel
+    Panel,
+    ConfirmDialog // Register ConfirmDialog component
   },
   computed: {
     ...mapGetters(['isAuthenticated', 'isAdmin']),
@@ -325,6 +332,9 @@ export default {
     ...mapActions(['checkAuthStatus', 'logout']),
   },
   setup() {
+
+    const confirm = useConfirm();
+
     // -------------------
     // Shared Upload State
     // -------------------
@@ -870,6 +880,54 @@ export default {
     };
 
     // -------------------
+    // Confirmation for MADC Submit
+    // -------------------
+    const confirmSubmitMadcData = () => {
+      confirm.require({
+        message: 'Are you sure you want to proceed with the MADC submission?',
+        header: 'Confirmation',
+        icon: 'pi pi-exclamation-triangle',
+        accept: submitMadcData, // Call the existing submit method on accept
+        reject: () => {
+          // Optional: Handle rejection (e.g., show a message or perform an action)
+          console.log('MADC submission canceled by the user.');
+        }
+      });
+    };
+
+    // -------------------
+    // Confirmation for PAV Submit
+    // -------------------
+    const confirmSubmitPavData = () => {
+      confirm.require({
+        message: 'Are you sure you want to proceed with the PAV submission?',
+        header: 'Confirmation',
+        icon: 'pi pi-exclamation-triangle',
+        accept: submitPavData, // Call the existing submit method on accept
+        reject: () => {
+          // Optional: Handle rejection
+          console.log('PAV submission canceled by the user.');
+        }
+      });
+    };
+
+    // -------------------
+    // Confirmation for Supplemental Submit
+    // -------------------
+    const confirmSubmitSupplementalData = () => {
+      confirm.require({
+        message: 'Are you sure you want to proceed with the Supplemental submission?',
+        header: 'Confirmation',
+        icon: 'pi pi-exclamation-triangle',
+        accept: submitSupplementalData, // Call the existing submit method on accept
+        reject: () => {
+          // Optional: Handle rejection
+          console.log('Supplemental submission canceled by the user.');
+        }
+      });
+    };
+
+    // -------------------
     // Fetch All Data on Mount
     // -------------------
     onMounted(() => {
@@ -931,16 +989,16 @@ export default {
       uploadMessageSupplemental,
       jobsSupplemental,
       handleFileSelectSupplemental,
-      submitSupplementalData
+      submitSupplementalData,
 
-      // Debugging
-      // Optionally, expose sourceOptionsMadc for debugging
+      // Confirmation Methods
+      confirmSubmitMadcData,
+      confirmSubmitPavData,
+      confirmSubmitSupplementalData
     };
   }
 };
 </script>
-
-
 
 <style scoped>
 .system-admin-container {

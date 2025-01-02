@@ -1,3 +1,4 @@
+// main.js
 import { createApp } from 'vue';
 import App from './App.vue';
 import router from './router'; 
@@ -16,6 +17,8 @@ import FileUpload from 'primevue/fileupload';
 import ToastService from 'primevue/toastservice';
 import Toast from 'primevue/toast';
 import Tooltip from 'primevue/tooltip';
+import ConfirmDialog from 'primevue/confirmdialog'; // Import ConfirmDialog
+import ConfirmationService from 'primevue/confirmationservice';
 
 // PrimeVue styles
 import 'primevue/resources/themes/lara-light-green/theme.css';  
@@ -30,6 +33,7 @@ app.use(PrimeVue);
 app.use(router);
 app.use(store);
 app.use(ToastService);
+app.use(ConfirmationService);
 
 app.component('Menubar', Menubar);
 app.component('PanelMenu', PanelMenu);
@@ -41,7 +45,7 @@ app.component('Column', Column);
 app.component('Paginator', Paginator);
 app.component('FileUpload', FileUpload);
 app.component('Toast', Toast);
+app.component('ConfirmDialog', ConfirmDialog); // Register ConfirmDialog globally
 app.directive('tooltip', Tooltip);
-
 
 app.mount('#app');

@@ -1,4 +1,3 @@
-<!-- src/components/Query.vue -->
 <template>
   <div class="sequences-container w-full px-4">
     <!-- Panel Component as the Container -->
@@ -281,8 +280,37 @@ export default {
         { label: 'Alfalfa', value: 'alfalfa' },
         { label: 'Cranberry', value: 'cranberry' }
       ],
-      loading: false
+      loading: false,
+      debounceTimer: null
     };
+  },
+  watch: {
+    // Combined watch block for species and filters
+    species(newVal, oldVal) {
+      if (newVal !== oldVal) {
+        // Reset selected sequences when species changes
+        this.updateSelectedSequences([]);
+
+        this.updateQueryState({ page: 1 });
+        this.fetchSequences();
+      }
+    },
+    filters: {
+      handler() {
+        // Debounce filter changes
+        if (this.debounceTimer) {
+          clearTimeout(this.debounceTimer);
+        }
+        this.debounceTimer = setTimeout(() => {
+          // 1. Reset selected sequences
+          this.updateSelectedSequences([]);
+
+          // 2. Fetch the sequences
+          this.fetchSequences();
+        }, 300); // Debounce delay in ms
+      },
+      deep: true
+    }
   },
   methods: {
     ...mapActions(['updateSelectedSequences', 'updateQueryState', 'resetQueryState']),
@@ -315,9 +343,7 @@ export default {
           filters: activeFilters
         });
 
-        // -----------------------------------------------------------------
         // Add uniqueKey to each sequence so PrimeVue can distinguish them.
-        // -----------------------------------------------------------------
         const sequencesWithKeys = response.data.items.map((sequence, index) => {
           sequence.uniqueKey = `${sequence.alleleid}-${sequence.allelesequence}-${index}`;
           return sequence;
@@ -349,7 +375,7 @@ export default {
 
       // Update filters and reset to first page
       this.updateQueryState({ filters: event.filters, page: 1 });
-      this.fetchSequences();
+      // Debounce is handled in the watcher, so no direct fetch here
     },
     onSpeciesChange() {
       // Reset selected sequences when species changes
@@ -392,7 +418,6 @@ export default {
       this.$router.push({ name: 'Details' });
     },
     downloadSequences() {
-      // Implement download functionality here
       // Example: Convert sequences to CSV and trigger download
       if (!this.sequences.length) {
         this.$toast.add({ 
@@ -429,28 +454,6 @@ export default {
     // If Query state exists in Vuex, fetch sequences based on it
     if (this.getQueryState.species) {
       this.fetchSequences();
-    }
-  },
-  watch: {
-    // Watch for changes in species and fetch sequences accordingly
-    species(newVal, oldVal) {
-      if (newVal !== oldVal) {
-        // Reset selected sequences when species changes
-        this.updateSelectedSequences([]);
-
-        this.updateQueryState({ page: 1 });
-        this.fetchSequences();
-      }
-    },
-    // Watch for changes in filters and fetch sequences accordingly
-    filters: {
-      handler() {
-        // Reset selected sequences when filters change
-        this.updateSelectedSequences([]);
-
-        this.fetchSequences();
-      },
-      deep: true
     }
   }
 };
