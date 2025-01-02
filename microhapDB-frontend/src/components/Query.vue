@@ -307,20 +307,28 @@ export default {
       }
 
       try {
-        const response = await axiosInstance.post('posts/sequences', { // Updated endpoint path
+        const response = await axiosInstance.post('posts/sequences', {
           page: this.page,
           size: this.size,
           species: this.species,
           globalFilter: this.filters.global.value,
           filters: activeFilters
         });
+
+        // -----------------------------------------------------------------
+        // Add uniqueKey to each sequence so PrimeVue can distinguish them.
+        // -----------------------------------------------------------------
+        const sequencesWithKeys = response.data.items.map((sequence, index) => {
+          sequence.uniqueKey = `${sequence.alleleid}-${sequence.allelesequence}-${index}`;
+          return sequence;
+        });
+
         // Update sequences and total in Vuex store
         this.updateQueryState({
-          sequences: response.data.items,
+          sequences: sequencesWithKeys,
           total: response.data.total
         });
 
-        // Removed dummy data assignment
       } catch (error) {
         console.error("Error fetching sequences:", error);
         // Optionally, set an error state to display a message to the user
@@ -430,7 +438,7 @@ export default {
         // Reset selected sequences when species changes
         this.updateSelectedSequences([]);
 
-        this.updateQueryState({ page: 1 }); // Reset to first page
+        this.updateQueryState({ page: 1 });
         this.fetchSequences();
       }
     },
@@ -521,7 +529,6 @@ export default {
   /* Optional: Adjust line-height if necessary */
   line-height: 1.5;
 }
-
 
 /* Hover effect for the count display */
 .selected-count:hover {
