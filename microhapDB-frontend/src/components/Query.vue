@@ -1,3 +1,5 @@
+
+<!--Query.vue-->
 <template>
   <div class="sequences-container w-full px-4">
     <!-- Panel Component as the Container -->
@@ -71,7 +73,7 @@
         :paginator="true" 
         paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
         :rowsPerPageOptions="[10, 25, 50]"
-        currentPageReportTemplate="Showing {first} to {last} of {totalRecords} accessions"
+        currentPageReportTemplate="Showing {first} to {last} of {totalRecords} alleles"
         :rows="size" 
         :totalRecords="total"
         :lazy="true"
@@ -415,7 +417,7 @@ export default {
     navigateToDetails() {
       // Store selected sequences in Vuex (already handled via v-model)
       // Navigate to the Details component
-      this.$router.push({ name: 'Details' });
+      this.$router.push({ name: 'DetailsAlt' });
     },
     downloadSequences() {
       // Example: Convert sequences to CSV and trigger download

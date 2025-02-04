@@ -8,6 +8,7 @@ import Login from './components/Login.vue';
 import SystemAdministration from './components/SystemAdministration.vue';
 import Query from './components/Query.vue';
 import Details from '@/components/Details.vue';
+import DetailsAlt from '@/components/DetailsAlt.vue';
 // import Alignment from './components/Alignment.vue';
 
 import store from './store';
@@ -44,6 +45,11 @@ const routes = [
     path: '/details', 
     name: 'Details', 
     component: Details
+  },
+  { 
+    path: '/detailsalt', 
+    name: 'DetailsAlt', 
+    component: DetailsAlt
   }
   // { path: '/alignment', name: 'Alignment', component: Alignment }
 ];

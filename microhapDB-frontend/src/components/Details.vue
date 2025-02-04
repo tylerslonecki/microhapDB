@@ -1,34 +1,44 @@
-<!-- src/components/Details.vue -->
 <template>
   <div class="details-container">
     <!-- Panel Component as the Title -->
     <Panel header="Details for Selected Alleles" class="mb-4">
       
       <!-- Buttons Container -->
-      <div class="buttons-container flex justify-end gap-2 mb-4">
+      <div class="buttons-container flex justify-center items-center gap-2 mb-4">
         <Button 
           label="Load More Accessions" 
           icon="pi pi-arrow-left" 
           @click="loadMoreAccessions" 
           class="p-button-secondary"
         />
+        
         <Button 
           label="Download Accessions" 
           icon="pi pi-download" 
           @click="downloadAccessions" 
           class="p-button-success"
+          :disabled="!selectedAccessions.length" 
         />
+
+        <!-- Selected Count Display -->
+        <div 
+          v-if="selectedAccessions.length" 
+          class="text-base text-gray-700 font-bold selected-count"
+        >
+          ( Selected Accessions: {{ selectedAccessions.length }} )
+        </div>
       </div>
       
       <!-- DataTable for Detailed Information -->
       <DataTable 
         :value="detailedInfo"
+        v-model:selection="selectedAccessions"
         class="datatable-details mb-3 w-full"  
         :loading="loading"
         :paginator="true" 
         paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
         :rowsPerPageOptions="[10, 25, 50]"
-        currentPageReportTemplate="Showing {first} to {last}  of  {totalRecords} accessions"
+        currentPageReportTemplate="Showing {first} to {last} of {totalRecords} accessions"
         :rows="size" 
         :totalRecords="detailedInfo.length"
         showGridlines 
@@ -38,7 +48,21 @@
         selectionMode="multiple" 
         dataKey="uniqueKey" 
         @page="onPageChange"
+        paginatorPosition="both"
       > 
+        <!-- Paginator Start Slot -->
+        <template #paginatorstart>
+          <Button 
+            type="button" 
+            icon="pi pi-refresh" 
+            text 
+            @click="refreshTable" 
+            v-tooltip="{ value: 'Refresh', showDelay: 1000, hideDelay: 300 }"
+            class="p-button-text p-button-icon-only"
+            :disabled="loading"
+          />
+        </template>
+
         <!-- Selection Checkbox Column -->
         <Column 
           selectionMode="multiple" 
@@ -103,11 +127,12 @@ export default {
   data() {
     return {
       detailedInfo: [],
+      selectedAccessions: [],
       loading: false,
-      size: 25, // Number of rows per page
+      size: 25,
       names: ['Moira', 'Craig','Dongyan', 'Alex', 'Meng', 'Cris', 'Josue', 'Shawn'],
-      sourceGroupSize: 5, // Number of consecutive rows with the same source
-      ownerGroupSize: 4  // Number of consecutive rows with the same owner
+      sourceGroupSize: 5,
+      ownerGroupSize: 4
     };
   },
   methods: {
@@ -116,49 +141,36 @@ export default {
         this.detailedInfo = [];
         return;
       }
-
       this.loading = true;
-
       try {
-        // Extract alleleid from selected sequences
         const alleleIds = this.getSelectedSequences.map(seq => seq.alleleid);
-
-        // Make a POST request to the new endpoint
         const response = await axiosInstance.post('posts/alleleAccessions/', {
           alleleid: alleleIds
         });
-
-        // Create a mapping from alleleid to accessions
         const alleleToAccessions = {};
         response.data.forEach(item => {
           alleleToAccessions[item.alleleid] = item.accessions;
         });
 
-        // Flatten the detailedInfo data: one row per accession with dummy "Source" and "Owner"
         const flattenedData = [];
-        let projectCounter = 0; // Counter for "Project X"
-        let ownerCounter = 0;    // Counter for owners
-
+        let projectCounter = 0;
+        let ownerCounter = 0;
         let currentSource = '';
         let currentOwner = '';
 
         this.getSelectedSequences.forEach(seq => {
           const accessions = alleleToAccessions[seq.alleleid] || [];
           accessions.forEach((accession) => {
-            // Assign "Source" every sourceGroupSize rows
             if (flattenedData.length % this.sourceGroupSize === 0) {
-              currentSource = `Project ${projectCounter % 3}`; // Cycles through Project 0, 1, 2
+              currentSource = `Project ${projectCounter % 3}`;
               projectCounter += 1;
             }
-
-            // Assign "Owner" every ownerGroupSize rows
             if (flattenedData.length % this.ownerGroupSize === 0) {
-              currentOwner = this.names[ownerCounter % this.names.length]; // Cycles through names
+              currentOwner = this.names[ownerCounter % this.names.length];
               ownerCounter += 1;
             }
-
             flattenedData.push({
-              uniqueKey: `${seq.alleleid}-${accession}-${flattenedData.length}`, // Unique key for dataKey
+              uniqueKey: `${seq.alleleid}-${accession}-${flattenedData.length}`,
               alleleid: seq.alleleid,
               accession: accession,
               source: currentSource,
@@ -168,7 +180,6 @@ export default {
         });
 
         this.detailedInfo = flattenedData;
-
       } catch (error) {
         console.error("Error fetching detailed information:", error);
         this.detailedInfo = [];
@@ -183,24 +194,21 @@ export default {
       }
     },
     loadMoreAccessions() {
-      // Navigate back to the Query component
       this.$router.push({ name: 'Query' });
     },
     downloadAccessions() {
-      // Implement download functionality here
-      // Example: Convert detailedInfo to CSV and trigger download
-      if (!this.detailedInfo.length) {
+      if (!this.selectedAccessions.length) {
         this.$toast.add({ 
           severity: 'warn', 
           summary: 'Warning', 
-          detail: 'No data available to download.', 
+          detail: 'No accessions selected for download.', 
           life: 3000 
         });
         return;
       }
 
       const headers = ['Allele ID', 'Accession', 'Source', 'Owner'];
-      const rows = this.detailedInfo.map(item => [
+      const rows = this.selectedAccessions.map(item => [
         item.alleleid, 
         item.accession, 
         item.source, 
@@ -214,15 +222,16 @@ export default {
       const link = document.createElement("a");
       link.setAttribute("href", encodedUri);
       link.setAttribute("download", "accessions.csv");
-      document.body.appendChild(link); // Required for FF
-
-      link.click(); // This will download the data file named "accessions.csv"
+      document.body.appendChild(link);
+      link.click();
       document.body.removeChild(link);
     },
     onPageChange(event) {
       this.size = event.rows;
-      // If implementing server-side pagination, handle it here
-      // For client-side pagination, no additional actions are needed
+    },
+    refreshTable() {
+      this.selectedAccessions = [];
+      this.fetchDetailedInfo();
     }
   },
   mounted() {
@@ -238,7 +247,7 @@ export default {
 }
 
 .buttons-container {
-  /* Align buttons to the right with some spacing */
+  /* Center items (buttons + selection count) horizontally */
 }
 
 .datatable-details {
@@ -249,11 +258,12 @@ export default {
 @media (max-width: 768px) {
   .buttons-container {
     flex-direction: column;
-    align-items: stretch;
+    align-items: center; /* center on small screens as well */
   }
 
   .buttons-container > * {
     width: 100%;
+    justify-content: center;
   }
 }
 </style>
