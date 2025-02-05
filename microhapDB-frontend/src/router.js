@@ -9,6 +9,7 @@ import SystemAdministration from './components/SystemAdministration.vue';
 import Query from './components/Query.vue';
 import Details from '@/components/Details.vue';
 import DetailsAlt from '@/components/DetailsAlt.vue';
+import Visualizations from '@/components/Visualizations.vue';
 // import Alignment from './components/Alignment.vue';
 
 import store from './store';
@@ -50,7 +51,13 @@ const routes = [
     path: '/detailsalt', 
     name: 'DetailsAlt', 
     component: DetailsAlt
+  },
+  { 
+    path: '/visualizations', 
+    name: 'Visualizations', 
+    component: Visualizations
   }
+
   // { path: '/alignment', name: 'Alignment', component: Alignment }
 ];
 

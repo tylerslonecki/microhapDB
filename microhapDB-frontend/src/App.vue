@@ -171,6 +171,11 @@ export default {
           icon: 'pi pi-search',
           route: '/query',
         },
+        {
+          label: 'Visualizations',
+          icon: 'pi pi-chart-bar',
+          route: '/visualizations',
+        },
       ],
       userMenuOptions: [],
       isSidebarVisible: false, // State for Sidebar visibility

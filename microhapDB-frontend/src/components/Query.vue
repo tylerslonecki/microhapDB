@@ -1,17 +1,10 @@
-
-<!--Query.vue-->
 <template>
   <div class="sequences-container w-full px-4">
-    <!-- Panel Component as the Container -->
     <Panel header="Query Unique Microhaplotypes" class="mb-4">
-      
       <!-- Filter Row -->
       <div class="filter-row flex items-center justify-between gap-5 mb-3 w-full">
-        
-        <!-- Filters Group: Species Label, Dropdown, and Keyword Search -->
+        <!-- Species Dropdown and Keyword Search -->
         <div class="flex items-center gap-4">
-          
-          <!-- Species Label and Dropdown -->
           <div class="flex items-center gap-2 centered-label-dropdown">
             <label for="speciesDropdown" class="font-bold">Species</label>
             <Dropdown 
@@ -21,12 +14,10 @@
               optionLabel="label"
               optionValue="value"
               placeholder="Select Species"
-              @change="onSpeciesChange" 
+              @change="handleSpeciesChange" 
               class="w-60"
             />
           </div>
-          
-          <!-- Keyword Search -->
           <div class="flex items-center">
             <IconField>
               <InputIcon>
@@ -35,95 +26,83 @@
               <InputText 
                 v-model="filters.global.value" 
                 placeholder="Keyword Search" 
-                @input="onGlobalFilter" 
+                @input="handleGlobalFilter" 
                 class="w-60"
               />
             </IconField>
           </div>
         </div>
-        
         <!-- View Details Button with Selected Count -->
         <div class="flex items-center">
-          <!-- View Details Button -->
           <Button 
             label="View Details" 
             icon="pi pi-arrow-right" 
             :disabled="!selectedSequences.length"
             @click="navigateToDetails" 
           />
-          
-          <!-- Selected Count Display -->
-          <div 
-            v-if="selectedSequences.length" 
-            class="ml-2 text-base text-gray-700 selected-count"
-          >
+          <div v-if="selectedSequences.length" class="ml-2 text-base text-gray-700 selected-count">
             ( Selected Alleles: {{ selectedSequences.length }} )
           </div>
         </div>
       </div>
       
-      <!-- DataTable for Detailed Information -->
+      <!-- DataTable without transition wrapper -->
+      <!-- A fixed min-height helps prevent layout shifts -->
       <DataTable 
         :first="first"
         v-model:selection="selectedSequences"
         :value="sequences" 
         :filters="filters"
-        :filterDisplay="'row'"
+        filterDisplay="row"
         :loading="loading"
-        :paginator="true" 
+        paginator
         paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
         :rowsPerPageOptions="[10, 25, 50]"
         currentPageReportTemplate="Showing {first} to {last} of {totalRecords} alleles"
         :rows="size" 
         :totalRecords="total"
-        :lazy="true"
+        lazy
         showGridlines 
         stripedRows
         @page="onPageChange"
         @filter="onFilter"
         tableStyle="min-width: 50rem"
         class="datatable-gridlines mb-3 w-full"
-        :emptyMessage="'No data available. Please adjust your filters or select a species.'"
+        emptyMessage="No data available. Please adjust your filters or select a species."
         selectionMode="multiple" 
         dataKey="uniqueKey" 
         paginatorPosition="both"
+        style="min-height: 300px;"
       > 
-        <!-- Paginator Start Slot -->
+        <!-- Paginator Slots -->
         <template #paginatorstart>
           <Button 
             type="button" 
             icon="pi pi-refresh" 
             text 
             @click="refreshTable" 
-            v-tooltip="{ value: 'Refresh', showDelay: 1000, hideDelay: 300 }" placeholder="Right"
+            v-tooltip="{ value: 'Refresh', showDelay: 1000, hideDelay: 300 }"
           />
         </template>
-        
-        <!-- Paginator End Slot -->
         <template #paginatorend>
           <Button 
             type="button" 
             icon="pi pi-download" 
             text 
             @click="downloadSequences" 
-            v-tooltip.left="{ value: 'Download as .CSV', showDelay: 1000, hideDelay: 300 }" placeholder="Left"
+            v-tooltip.left="{ value: 'Download as .CSV', showDelay: 1000, hideDelay: 300 }"
           />
         </template>
         
-        <!-- Selection Checkbox Column -->
-        <Column 
-          selectionMode="multiple" 
-          headerStyle="width: 3rem" 
-          exportable="false" 
-        ></Column>
-
-        <!-- Allele ID Column -->
+        <!-- Columns -->
+        <Column selectionMode="multiple" headerStyle="width: 3rem" exportable="false" />
+        
         <Column 
           field="alleleid" 
           header="Allele ID" 
           filter 
           filterPlaceholder="Search Allele ID"
-          :filterMatchMode="'contains'"
+          filterMatchMode="contains"
         >
           <template #filter="{ filterModel, filterCallback }">
             <InputText 
@@ -135,13 +114,12 @@
           </template>
         </Column>
 
-        <!-- Info Column -->
         <Column 
           field="info" 
           header="Info" 
           filter 
           filterPlaceholder="Search Info"
-          :filterMatchMode="'contains'"
+          filterMatchMode="contains"
         >
           <template #filter="{ filterModel, filterCallback }">
             <InputText 
@@ -153,13 +131,12 @@
           </template>
         </Column>
 
-        <!-- Associated Trait Column -->
         <Column 
           field="associated_trait" 
           header="Associated Trait" 
           filter 
           filterPlaceholder="Search Associated Trait"
-          :filterMatchMode="'contains'"
+          filterMatchMode="contains"
         >
           <template #filter="{ filterModel, filterCallback }">
             <InputText 
@@ -171,20 +148,16 @@
           </template>
         </Column>
 
-        <!-- Allele Sequence Column with Smaller Font -->
         <Column 
           field="allelesequence" 
           header="Allele Sequence" 
           filter 
           filterPlaceholder="Search Allele Sequence"
-          :filterMatchMode="'contains'"
+          filterMatchMode="contains"
         >
-          <!-- Custom Body Template for Smaller Font -->
           <template #body="{ data }">
             <span class="small-font">{{ data.allelesequence }}</span>
           </template>
-
-          <!-- Existing Filter Template -->
           <template #filter="{ filterModel, filterCallback }">
             <InputText 
               v-model="filterModel.value" 
@@ -209,7 +182,7 @@ import Button from 'primevue/button';
 import IconField from 'primevue/iconfield';
 import InputIcon from 'primevue/inputicon';
 import Panel from 'primevue/panel';
-import Tooltip from 'primevue/tooltip'; // Import Tooltip directive
+import Tooltip from 'primevue/tooltip';
 import { mapActions, mapGetters } from 'vuex';
 
 export default {
@@ -225,12 +198,11 @@ export default {
     Panel
   },
   directives: {
-    tooltip: Tooltip // Register Tooltip directive
+    tooltip: Tooltip
   },
   computed: {
     ...mapGetters(['getSelectedSequences', 'getQueryState']),
-    
-    // Bind component's data to Vuex store state
+    // Two-way binding to Vuex state
     species: {
       get() {
         return this.getQueryState.species;
@@ -259,9 +231,6 @@ export default {
     total() {
       return this.getQueryState.total;
     },
-    associatedTraits() {
-      return this.getQueryState.associatedTraits;
-    },
     selectedSequences: {
       get() {
         return this.getSelectedSequences;
@@ -287,29 +256,20 @@ export default {
     };
   },
   watch: {
-    // Combined watch block for species and filters
     species(newVal, oldVal) {
       if (newVal !== oldVal) {
-        // Reset selected sequences when species changes
-        this.updateSelectedSequences([]);
-
+        this.resetSelection();
         this.updateQueryState({ page: 1 });
         this.fetchSequences();
       }
     },
     filters: {
       handler() {
-        // Debounce filter changes
-        if (this.debounceTimer) {
-          clearTimeout(this.debounceTimer);
-        }
+        if (this.debounceTimer) clearTimeout(this.debounceTimer);
         this.debounceTimer = setTimeout(() => {
-          // 1. Reset selected sequences
-          this.updateSelectedSequences([]);
-
-          // 2. Fetch the sequences
+          this.resetSelection();
           this.fetchSequences();
-        }, 300); // Debounce delay in ms
+        }, 300);
       },
       deep: true
     }
@@ -317,27 +277,39 @@ export default {
   methods: {
     ...mapActions(['updateSelectedSequences', 'updateQueryState', 'resetQueryState']),
     
+    // Resets the selected sequences
+    resetSelection() {
+      this.updateSelectedSequences([]);
+    },
+
+    // Combines resetting selection and setting the page to 1 before fetching new data
+    resetAndFetch() {
+      this.resetSelection();
+      this.updateQueryState({ page: 1 });
+      this.fetchSequences();
+    },
+
     async fetchSequences() {
       if (!this.species) {
-        this.updateQueryState({ sequences: [], total: 0 });
         return;
       }
-
+      // Record start time to enforce a minimum loading time.
+      const startTime = Date.now();
       this.loading = true;
 
-      // Prepare filters for backend
-      const activeFilters = {};
-      for (const key in this.filters) {
+      // Build active filters (ignoring global)
+      const activeFilters = Object.keys(this.filters).reduce((acc, key) => {
         if (this.filters[key].value && key !== 'global') {
-          activeFilters[key] = {
-            value: this.filters[key].value,
-            matchMode: this.filters[key].matchMode
+          acc[key] = { 
+            value: this.filters[key].value, 
+            matchMode: this.filters[key].matchMode 
           };
         }
-      }
+        return acc;
+      }, {});
 
       try {
-        const response = await axiosInstance.post('posts/sequences', {
+        const { data } = await axiosInstance.post('posts/sequences', {
           page: this.page,
           size: this.size,
           species: this.species,
@@ -345,61 +317,52 @@ export default {
           filters: activeFilters
         });
 
-        // Add uniqueKey to each sequence so PrimeVue can distinguish them.
-        const sequencesWithKeys = response.data.items.map((sequence, index) => {
-          sequence.uniqueKey = `${sequence.alleleid}-${sequence.allelesequence}-${index}`;
-          return sequence;
-        });
+        // Add a unique key to each sequence for PrimeVue
+        const sequencesWithKeys = data.items.map((sequence, index) => ({
+          ...sequence,
+          uniqueKey: `${sequence.alleleid}-${sequence.allelesequence}-${index}`
+        }));
 
-        // Update sequences and total in Vuex store
         this.updateQueryState({
           sequences: sequencesWithKeys,
-          total: response.data.total
+          total: data.total
         });
-
       } catch (error) {
         console.error("Error fetching sequences:", error);
-        // Optionally, set an error state to display a message to the user
         this.updateQueryState({ sequences: [], total: 0 });
       } finally {
+        // Enforce a minimum loading time of 200ms.
+        const elapsed = Date.now() - startTime;
+        const minLoadingTime = 200;
+        if (elapsed < minLoadingTime) {
+          await new Promise(resolve => setTimeout(resolve, minLoadingTime - elapsed));
+        }
         this.loading = false;
       }
     },
+
     onPageChange(event) {
-      // PrimeVue uses zero-based indexing for pages
       const newPage = event.page + 1;
       this.updateQueryState({ page: newPage, size: event.rows });
       this.fetchSequences();
     },
+
     onFilter(event) {
-      // Reset selected sequences when filters change
-      this.updateSelectedSequences([]);
-
-      // Update filters and reset to first page
+      this.resetSelection();
       this.updateQueryState({ filters: event.filters, page: 1 });
-      // Debounce is handled in the watcher, so no direct fetch here
+      // Debouncing is handled in the watcher.
     },
-    onSpeciesChange() {
-      // Reset selected sequences when species changes
-      this.updateSelectedSequences([]);
 
-      // Reset page to 1 and fetch new sequences
-      this.updateQueryState({ page: 1 });
-      this.fetchSequences();
+    handleSpeciesChange() {
+      this.resetAndFetch();
     },
-    onGlobalFilter() {
-      // Reset selected sequences when global filter changes
-      this.updateSelectedSequences([]);
 
-      // Reset page to 1 and fetch new sequences
-      this.updateQueryState({ page: 1 });
-      this.fetchSequences();
+    handleGlobalFilter() {
+      this.resetAndFetch();
     },
+
     refreshTable() {
-      // Reset selected sequences
-      this.updateSelectedSequences([]);
-
-      // Reset only the global and column-specific filters
+      this.resetSelection();
       this.updateQueryState({
         filters: {
           global: { value: null, matchMode: 'contains' },
@@ -410,17 +373,14 @@ export default {
         },
         page: 1
       });
-
-      // Fetch the sequences with reset filters and page
-      this.fetchSequences();
+      // The filters watcher will call fetchSequences after debounce.
     },
+
     navigateToDetails() {
-      // Store selected sequences in Vuex (already handled via v-model)
-      // Navigate to the Details component
       this.$router.push({ name: 'DetailsAlt' });
     },
+
     downloadSequences() {
-      // Example: Convert sequences to CSV and trigger download
       if (!this.sequences.length) {
         this.$toast.add({ 
           severity: 'warn', 
@@ -430,7 +390,6 @@ export default {
         });
         return;
       }
-
       const headers = ['Allele ID', 'Info', 'Associated Trait', 'Allele Sequence'];
       const rows = this.sequences.map(seq => [
         seq.alleleid, 
@@ -438,22 +397,21 @@ export default {
         seq.associated_trait, 
         seq.allelesequence
       ]);
-      let csvContent = "data:text/csv;charset=utf-8," 
-        + headers.join(",") + "\n" 
-        + rows.map(e => e.join(",")).join("\n");
-
+      const csvContent =
+        "data:text/csv;charset=utf-8," +
+        headers.join(",") +
+        "\n" +
+        rows.map(e => e.join(",")).join("\n");
       const encodedUri = encodeURI(csvContent);
       const link = document.createElement("a");
       link.setAttribute("href", encodedUri);
       link.setAttribute("download", "sequences.csv");
-      document.body.appendChild(link); // Required for FF
-
-      link.click(); // This will download the data file named "sequences.csv"
+      document.body.appendChild(link);
+      link.click();
       document.body.removeChild(link);
     }
   },
   mounted() {
-    // If Query state exists in Vuex, fetch sequences based on it
     if (this.getQueryState.species) {
       this.fetchSequences();
     }
@@ -467,60 +425,55 @@ export default {
 }
 
 .datatable-gridlines {
-  /* Add any specific styling if required */
+  /* Additional styling if required */
 }
 
-.p-datatable .p-column-header, .p-datatable .p-cell {
-  /* Allow text wrapping */
+/* Override the default loading overlay style to use a lighter overlay */
+::v-deep .p-datatable-loading-overlay {
+  background: rgba(255, 255, 255, 0.4) !important;
+  transition: opacity 0.2s ease;
+}
+
+.p-datatable .p-column-header,
+.p-datatable .p-cell {
   white-space: normal;
 }
 
-.p-datatable .p-column-header:nth-child(3), /* Info column */
-.p-datatable .p-column-header:nth-child(4) { /* Associated Trait column */
-  width: 200px; /* Adjust width as needed */
+.p-datatable .p-column-header:nth-child(3),
+.p-datatable .p-column-header:nth-child(4) {
+  width: 200px;
 }
 
-/* Ensure the selection checkbox column has appropriate width */
 .p-datatable .p-selection-column {
   width: 3rem;
   text-align: center;
 }
 
-/* Custom class for smaller font in Allele Sequence column */
 .small-font {
-  font-size: 12px; /* Adjust the size as needed */
-  /* You can add more styling if necessary */
+  font-size: 12px;
 }
 
-/* Responsive Design */
 @media (max-width: 768px) {
   .filter-row {
     flex-direction: column;
     align-items: stretch;
   }
-  
   .filter-row > div {
     width: 100%;
   }
-
   .filter-row .w-60 {
-    width: 100%; /* Make inputs full width on small screens */
+    width: 100%;
   }
-
-  /* Stack button and count vertically */
   .filter-row .flex.items-center {
     flex-direction: column;
-    align-items: flex-start; /* or center */
+    align-items: flex-start;
   }
-
-  /* Adjust margin for small screens */
   .filter-row .flex.items-center .ml-4 {
     margin-left: 0;
-    margin-top: 0.5rem; /* Adds space above the count */
+    margin-top: 0.5rem;
   }
 }
 
-/* Centering the label and dropdown */
 .centered-label-dropdown {
   display: flex;
   align-items: center;
@@ -531,19 +484,22 @@ export default {
   font-weight: 600;
   display: flex;
   align-items: center;
-  /* Optional: Adjust line-height if necessary */
   line-height: 1.5;
 }
 
-/* Hover effect for the count display */
 .selected-count:hover {
-  color: #4A5568; /* Darker gray on hover */
+  color: #4A5568;
   transition: color 0.3s ease;
 }
 
-/* Prevent tooltip text from wrapping */
 ::v-deep .p-tooltip {
   white-space: nowrap;
-  max-width: none; /* Optional: Remove max-width to prevent wrapping */
+  max-width: none;
 }
+
+/* Hide the filter menu icon from the filter row */
+::v-deep .p-datatable .p-column-filter .p-column-filter-menu-button {
+  display: none;
+}
+
 </style>

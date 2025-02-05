@@ -1,3 +1,4 @@
+<!--DetailsAlt.vue-->
 <template>
     <div class="details-container">
       <!-- Back Button -->
@@ -12,7 +13,6 @@
   
       <!-- Panel for Selected Alleles -->
       <Panel header="Selected Alleles" class="mb-4">
-        <!-- Responsive grid for buttons, reduced gap to gap-1 -->
         <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-1">
           <button
             v-for="allele in getSelectedSequences"
@@ -21,8 +21,8 @@
             @click="openAlleleDetail(allele)"
             :title="allele.alleleid || allele.id"
           >
+            <span class="remove-btn" @click.stop="removeAllele(allele)">X</span>
             <div class="allele-button-header">
-              <!-- Remove 'truncate' and let text wrap naturally -->
               <h3 class="font-mono text-xs">
                 {{ allele.alleleid || allele.id }}
               </h3>
@@ -31,21 +31,92 @@
         </div>
       </Panel>
   
+      <!-- Panel for Shared Accessions -->
+      <Panel :header="'Shared Accessions (' + sharedAccessions.length + ')'">
+        <!-- Search field for Shared Accessions -->
+        <div class="mb-2">
+          <InputText 
+            v-model="searchSharedQuery" 
+            placeholder="Search Shared Accessions..." 
+            class="p-inputtext-sm" 
+          />
+        </div>
+        <DataTable 
+          :value="filteredSharedAccessions"
+          paginator
+          :rows="10"
+          class="p-datatable-sm"
+          responsiveLayout="scroll"
+          paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
+        >
+          <!-- Optional paginator start slot (e.g., for a refresh button) -->
+          <template #paginatorstart>
+            <!-- Uncomment if needed
+            <Button 
+              type="button" 
+              icon="pi pi-refresh" 
+              text 
+              @click="refreshSharedTable" 
+              v-tooltip="{ value: 'Refresh', showDelay: 1000, hideDelay: 300 }"
+            />-->
+          </template>
+          <!-- Paginator end slot with download button -->
+          <template #paginatorend>
+            <Button 
+              type="button"
+              icon="pi pi-download"
+              text
+              @click="downloadSharedTable"
+              v-tooltip.left="{ value: 'Download as .CSV', showDelay: 1000, hideDelay: 300 }"
+            />
+          </template>
+          <Column field="accession" header="Accession" sortable />
+          <Column field="source" header="Source" sortable />
+          <Column field="owner" header="Owner" sortable />
+        </DataTable>
+      </Panel>
+  
       <!-- Panel for Combined Accessions -->
       <Panel :header="'Combined Accessions (' + uniqueAccessions.length + ')'">
         <div class="mb-2">
-          <InputText v-model="searchQuery" placeholder="Search Accessions..." class="p-inputtext-sm" />
+          <InputText 
+            v-model="searchQuery" 
+            placeholder="Search Accessions..." 
+            class="p-inputtext-sm" 
+          />
         </div>
         <DataTable 
           :value="filteredAccessions"
-          :paginator="true"
+          paginator
           :rows="10"
           class="p-datatable-sm"
-          :responsiveLayout="'scroll'"
+          responsiveLayout="scroll"
+          paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
         >
-          <Column field="accession" header="Accession" sortable></Column>
-          <Column field="source" header="Source" sortable></Column>
-          <Column field="owner" header="Owner" sortable></Column>
+          <!-- Optional paginator start slot -->
+          <template #paginatorstart>
+            <!-- Uncomment if needed
+            <Button 
+              type="button" 
+              icon="pi pi-refresh" 
+              text 
+              @click="refreshCombinedTable" 
+              v-tooltip="{ value: 'Refresh', showDelay: 1000, hideDelay: 300 }"
+            />-->
+          </template>
+          <!-- Paginator end slot with download button -->
+          <template #paginatorend>
+            <Button 
+              type="button"
+              icon="pi pi-download"
+              text
+              @click="downloadCombinedTable"
+              v-tooltip.left="{ value: 'Download as .CSV', showDelay: 1000, hideDelay: 300 }"
+            />
+          </template>
+          <Column field="accession" header="Accession" sortable />
+          <Column field="source" header="Source" sortable />
+          <Column field="owner" header="Owner" sortable />
         </DataTable>
       </Panel>
   
@@ -53,10 +124,10 @@
       <Dialog
         header="Allele Details"
         v-model:visible="showDetailDialog"
-        :modal="true"
-        :closable="true"
+        modal
+        closable
         :style="dialogStyle"
-        @hide="selectedAlleleDetail = null"
+        @hide="clearAlleleDetail"
       >
         <div v-if="selectedAlleleDetail" class="p-3">
           <p><strong>Allele ID:</strong> {{ selectedAlleleDetail.alleleid }}</p>
@@ -64,20 +135,13 @@
           <p><strong>INFO:</strong> {{ selectedAlleleDetail.info }}</p>
           <p><strong>Associated Trait:</strong> {{ selectedAlleleDetail.associatedTrait }}</p>
           <p><strong>Total Accessions:</strong> {{ selectedAlleleDetail.totalAccessions }}</p>
-
           <p>
             <strong>Associated Project:</strong>
-            <span v-if="selectedAlleleDetail.associatedProject !== 'None'">
-              {{ selectedAlleleDetail.associatedProject }}
-            </span>
-            <span v-else>None</span>
+            <span>{{ selectedAlleleDetail.associatedProject || 'None' }}</span>
           </p>
           <p>
             <strong>Owner:</strong>
-            <span v-if="selectedAlleleDetail.owner">
-              {{ selectedAlleleDetail.owner }}
-            </span>
-            <span v-else>None</span>
+            <span>{{ selectedAlleleDetail.owner || 'None' }}</span>
           </p>
         </div>
       </Dialog>
@@ -90,9 +154,9 @@
   import Button from "primevue/button";
   import Panel from "primevue/panel";
   import Dialog from "primevue/dialog";
-  import DataTable from 'primevue/datatable';
-  import Column from 'primevue/column';
-  import InputText from 'primevue/inputtext';
+  import DataTable from "primevue/datatable";
+  import Column from "primevue/column";
+  import InputText from "primevue/inputtext";
   
   export default {
     name: "Details",
@@ -102,39 +166,76 @@
       Dialog,
       DataTable,
       Column,
-      InputText
+      InputText,
     },
     data() {
       return {
         detailedInfo: [],
         showDetailDialog: false,
         selectedAlleleDetail: null,
-        searchQuery: ''
+        searchQuery: "",
+        searchSharedQuery: "",
+        windowWidth: window.innerWidth,
       };
     },
     computed: {
       ...mapGetters(["getSelectedSequences"]),
       uniqueAccessions() {
-        const accessions = this.detailedInfo.map(item => ({
-          accession: item.accession,
-          source: item.source,
-          owner: item.owner
-        }));
-        return [...new Set(accessions.map(acc => acc.accession))].map(acc => {
-          const found = accessions.find(a => a.accession === acc);
-          return found ? found : { accession: acc, source: 'Unknown', owner: 'Unknown' };
-        }).sort((a, b) => a.accession.localeCompare(b.accession));
+        const accessionMap = new Map();
+        this.detailedInfo.forEach(({ accession, source, owner }) => {
+          if (!accessionMap.has(accession)) {
+            accessionMap.set(accession, { accession, source, owner });
+          }
+        });
+        return Array.from(accessionMap.values()).sort((a, b) =>
+          a.accession.localeCompare(b.accession)
+        );
       },
       filteredAccessions() {
         if (!this.searchQuery) return this.uniqueAccessions;
         const query = this.searchQuery.toLowerCase();
-        return this.uniqueAccessions.filter(acc => acc.accession.toLowerCase().includes(query));
+        return this.uniqueAccessions.filter(acc =>
+          acc.accession.toLowerCase().includes(query)
+        );
+      },
+      sharedAccessions() {
+        if (!this.getSelectedSequences.length) return [];
+        const alleleCount = this.getSelectedSequences.length;
+        const accessionMap = new Map();
+  
+        this.detailedInfo.forEach(item => {
+          const { accession, alleleid } = item;
+          if (!accessionMap.has(accession)) {
+            accessionMap.set(accession, new Set());
+          }
+          accessionMap.get(accession).add(alleleid);
+        });
+  
+        const shared = [];
+        accessionMap.forEach((alleleSet, accession) => {
+          if (alleleSet.size === alleleCount) {
+            const detail = this.detailedInfo.find(item => item.accession === accession);
+            shared.push({
+              accession,
+              source: detail ? detail.source : '',
+              owner: detail ? detail.owner : ''
+            });
+          }
+        });
+        return shared.sort((a, b) => a.accession.localeCompare(b.accession));
+      },
+      filteredSharedAccessions() {
+        if (!this.searchSharedQuery) return this.sharedAccessions;
+        const query = this.searchSharedQuery.toLowerCase();
+        return this.sharedAccessions.filter(acc =>
+          acc.accession.toLowerCase().includes(query)
+        );
       },
       dialogStyle() {
         return {
-          width: window.innerWidth < 600 ? '90vw' : '800px'
+          width: this.windowWidth < 600 ? "90vw" : "800px",
         };
-      }
+      },
     },
     methods: {
       async fetchDetailedInfo() {
@@ -144,11 +245,11 @@
         }
         try {
           const alleleIds = this.getSelectedSequences.map(seq => seq.alleleid);
-          const response = await axiosInstance.post("posts/alleleAccessions/", {
-            alleleid: alleleIds
+          const { data } = await axiosInstance.post("posts/alleleAccessions/", {
+            alleleid: alleleIds,
           });
           const alleleToAccessions = {};
-          response.data.forEach(item => {
+          data.forEach(item => {
             alleleToAccessions[item.alleleid] = item.accessions;
           });
   
@@ -158,19 +259,16 @@
   
           this.getSelectedSequences.forEach(seq => {
             const accessions = alleleToAccessions[seq.alleleid] || [];
-            const owner = `Owner ${ownerCounter + 1}`;
-            ownerCounter += 1;
-  
+            const owner = `Owner ${++ownerCounter}`;
             const project = `Proj ${projectCounter % 3}`;
-            projectCounter += 1;
-  
+            projectCounter++;
             accessions.forEach(accession => {
               flattenedData.push({
                 uniqueKey: `${seq.alleleid}-${accession}-${flattenedData.length}`,
                 alleleid: seq.alleleid,
                 accession,
                 source: project,
-                owner: owner
+                owner,
               });
             });
           });
@@ -178,19 +276,22 @@
         } catch (error) {
           console.error("Error fetching detailed information:", error);
           this.detailedInfo = [];
-          this.$toast &&
+          if (this.$toast) {
             this.$toast.add({
               severity: "error",
               summary: "Error",
               detail: "Failed to fetch detailed information.",
-              life: 3000
+              life: 3000,
             });
+          }
         }
       },
       openAlleleDetail(allele) {
-        const detailsForAllele = this.detailedInfo.filter(item => item.alleleid === allele.alleleid);
-        const associatedProject = detailsForAllele.length ? detailsForAllele[0].source : "None";
-        const owner = detailsForAllele.length ? detailsForAllele[0].owner : "None";
+        const detailsForAllele = this.detailedInfo.filter(
+          item => item.alleleid === allele.alleleid
+        );
+        const associatedProject = detailsForAllele[0]?.source || "None";
+        const owner = detailsForAllele[0]?.owner || "None";
         const totalAccessions = detailsForAllele.length;
   
         this.selectedAlleleDetail = {
@@ -204,20 +305,62 @@
         };
         this.showDetailDialog = true;
       },
+      clearAlleleDetail() {
+        this.selectedAlleleDetail = null;
+      },
       goBack() {
         this.$router.push({ name: "Query" });
       },
       handleResize() {
-        this.$forceUpdate();
-      }
+        this.windowWidth = window.innerWidth;
+      },
+      removeAllele(allele) {
+        this.$store.commit("REMOVE_SELECTED_SEQUENCE", allele);
+        this.fetchDetailedInfo();
+      },
+      downloadCSV(data, filename) {
+        const header = ["Accession", "Source", "Owner"];
+        const csvRows = [header.join(",")];
+  
+        data.forEach(item => {
+          const row = [
+            `"${item.accession}"`,
+            `"${item.source}"`,
+            `"${item.owner}"`
+          ];
+          csvRows.push(row.join(","));
+        });
+  
+        const csvString = csvRows.join("\n");
+        const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.setAttribute("download", filename);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      },
+      downloadCombinedTable() {
+        this.downloadCSV(this.filteredAccessions, "combined_accessions.csv");
+      },
+      downloadSharedTable() {
+        this.downloadCSV(this.filteredSharedAccessions, "shared_accessions.csv");
+      },
+      // Optional: Define refresh methods if desired.
+      refreshCombinedTable() {
+        this.fetchDetailedInfo();
+      },
+      refreshSharedTable() {
+        this.fetchDetailedInfo();
+      },
     },
     mounted() {
       this.fetchDetailedInfo();
-      window.addEventListener('resize', this.handleResize);
+      window.addEventListener("resize", this.handleResize);
     },
     beforeUnmount() {
-      window.removeEventListener('resize', this.handleResize);
-    }
+      window.removeEventListener("resize", this.handleResize);
+    },
   };
   </script>
   
@@ -226,45 +369,53 @@
     padding: 10px;
     font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
   }
-  
-  /* Make buttons flexible so the text can wrap */
   .allele-button {
-    padding: 0.2rem; 
+    padding: 0.2rem;
     border: 1px solid #e5e7eb;
     background-color: white;
     cursor: pointer;
     transition: background-color 0.3s, border-color 0.3s, transform 0.3s;
-    box-sizing: border-box;
     display: flex;
     flex-direction: column;
     justify-content: flex-start;
     text-align: left;
     border-radius: 0.5rem;
+    position: relative;
   }
-  
-  /* Hover Effect */
+  .remove-btn {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    background-color: #ccc;
+    border-radius: 50%;
+    width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    cursor: pointer;
+    z-index: 10;
+  }
+  .remove-btn:hover {
+    background-color: #aaa;
+    transform: scale(1.05);
+  }
   .allele-button:hover {
     background-color: var(--surface-hover, #f0f4c3);
     border-color: var(--primary-color, #8bc34a);
     transform: scale(1.02);
   }
-  
-  /* Header Styling: allow wrapping, remove truncation */
   .allele-button-header h3 {
     font-size: 0.9rem;
-    white-space: normal;          /* allows multi-line wrapping */
-    word-wrap: break-word;        /* older property for wrapping text */
-    overflow-wrap: anywhere;      /* modern property to break long words */
+    white-space: normal;
+    overflow-wrap: anywhere;
     margin-bottom: 0.15rem;
   }
-  
-  /* Dialog Content Styling */
   .dialog-content p {
     font-size: 0.7rem;
     margin: 0.3rem 0;
   }
-  
-  /* Reduced gap between items from gap-2 to gap-1 in the template */
   .grid {
     display: grid;
   }
@@ -289,17 +440,12 @@
   .gap-1 {
     gap: 0.25rem;
   }
-  
-  /* Breakpoint adjustments (optional) */
   @media (max-width: 480px) {
-    /* Adjust dialog width for very small screens */
     .p-dialog {
       width: 90vw !important;
       max-width: 90vw !important;
     }
   }
-  
-  /* Utility Classes */
   .text-xs {
     font-size: 0.75rem;
   }

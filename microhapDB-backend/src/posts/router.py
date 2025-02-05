@@ -903,3 +903,48 @@ async def list_supplemental_jobs():
 
     return job_list
 
+
+@router.get("/visualizations/histogram")
+async def get_histogram_data(
+    species: str,
+    chromosome: str,
+    db: AsyncSession = Depends(get_session)
+):
+    """
+    Returns counts of alleles grouped by locus for a given species and chromosome.
+    The alleleID format is assumed to be 'chromosome.locus|uniqueID'.
+    """
+    print(f"Received request with species: {species}, chromosome: {chromosome}")
+    try:
+        # Use PostgreSQL's split_part function with named parameters
+        query = text("""
+            SELECT 
+                split_part(alleleid, '.', 1) AS chromosome,
+                split_part(split_part(alleleid, '.', 2), '|', 1) AS locus,
+                COUNT(*) AS allele_count
+            FROM sequence_table
+            WHERE species = :species
+              AND split_part(alleleid, '.', 1) = :chromosome
+            GROUP BY 
+                split_part(alleleid, '.', 1),
+                split_part(split_part(alleleid, '.', 2), '|', 1)
+            ORDER BY locus;
+        """)
+        print("Executing query:")
+        print(query)
+        result = await db.execute(query, {'species': species, 'chromosome': chromosome})
+        rows = result.fetchall()
+        print("Query result rows:")
+        print(rows)
+
+        # Format the data for the frontend
+        data = [
+            {"chromosome": row.chromosome, "locus": row.locus, "allele_count": row.allele_count}
+            for row in rows
+        ]
+        print("Formatted data to be returned:")
+        print(data)
+        return {"data": data}
+    except Exception as e:
+        print("Error retrieving histogram data:", e)
+        raise HTTPException(status_code=500, detail=f"Error retrieving histogram data: {e}")

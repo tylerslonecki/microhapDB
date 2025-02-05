@@ -38,6 +38,16 @@ export default createStore({
     setSelectedSequences(state, sequences) {
       state.selectedSequences = sequences;
     },
+    /**
+     * Removes a selected allele from the state.
+     * It filters out any sequence whose identifier matches the provided allele.
+     */
+    REMOVE_SELECTED_SEQUENCE(state, allele) {
+      state.selectedSequences = state.selectedSequences.filter(seq => {
+        // Compare using alleleid if available; fallback to id
+        return (seq.alleleid || seq.id) !== (allele.alleleid || allele.id);
+      });
+    },
     // New mutations for Query state
     setQueryState(state, payload) {
       state.query = { ...state.query, ...payload };
@@ -113,8 +123,8 @@ export default createStore({
     isAuthenticated: state => state.isAuthenticated,
     isAdmin: state => state.isAdmin,
     username: state => state.username,
-    getSelectedSequences: (state) => state.selectedSequences,
+    getSelectedSequences: state => state.selectedSequences,
     // New getters for Query state
-    getQueryState: (state) => state.query
+    getQueryState: state => state.query
   }
 });
