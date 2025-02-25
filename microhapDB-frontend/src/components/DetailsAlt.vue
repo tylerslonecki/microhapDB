@@ -32,7 +32,17 @@
       </Panel>
   
       <!-- Panel for Shared Accessions -->
-      <Panel :header="'Shared Accessions (' + sharedAccessions.length + ')'">
+      <Panel class="mb-4">
+        <template #header>
+          <div class="header-container">
+            <span>Shared Accessions ({{ sharedAccessions.length }})</span>
+            <Button 
+              icon="pi pi-info-circle" 
+              class="p-button-text p-button-sm info-icon" 
+              @click="showSharedInfoDialog = true" 
+            />
+          </div>
+        </template>
         <!-- Search field for Shared Accessions -->
         <div class="mb-2">
           <InputText 
@@ -49,7 +59,7 @@
           responsiveLayout="scroll"
           paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
         >
-          <!-- Optional paginator start slot (e.g., for a refresh button) -->
+          <!-- Optional paginator start slot -->
           <template #paginatorstart>
             <!-- Uncomment if needed
             <Button 
@@ -77,7 +87,17 @@
       </Panel>
   
       <!-- Panel for Combined Accessions -->
-      <Panel :header="'Combined Accessions (' + uniqueAccessions.length + ')'">
+      <Panel>
+        <template #header>
+          <div class="header-container">
+            <span>Combined Accessions ({{ uniqueAccessions.length }})</span>
+            <Button 
+              icon="pi pi-info-circle" 
+              class="p-button-text p-button-sm info-icon" 
+              @click="showCombinedInfoDialog = true" 
+            />
+          </div>
+        </template>
         <div class="mb-2">
           <InputText 
             v-model="searchQuery" 
@@ -131,9 +151,14 @@
       >
         <div v-if="selectedAlleleDetail" class="p-3">
           <p><strong>Allele ID:</strong> {{ selectedAlleleDetail.alleleid }}</p>
-          <p><strong>Sequence:</strong> {{ selectedAlleleDetail.sequence }}</p>
-          <p><strong>INFO:</strong> {{ selectedAlleleDetail.info }}</p>
-          <p><strong>Associated Trait:</strong> {{ selectedAlleleDetail.associatedTrait }}</p>
+          <p>
+            <strong>Sequence:</strong>
+            <span class="sequence-modal-wrap">
+              {{ selectedAlleleDetail.sequence || 'No sequence available' }}
+            </span>
+          </p>
+          <p><strong>INFO:</strong> {{ selectedAlleleDetail.info || 'No information available' }}</p>
+          <p><strong>Associated Trait:</strong> {{ selectedAlleleDetail.associatedTrait || 'No associated traits' }}</p>
           <p><strong>Total Accessions:</strong> {{ selectedAlleleDetail.totalAccessions }}</p>
           <p>
             <strong>Associated Project:</strong>
@@ -144,6 +169,34 @@
             <span>{{ selectedAlleleDetail.owner || 'None' }}</span>
           </p>
         </div>
+      </Dialog>
+  
+      <!-- Shared Accessions Info Dialog -->
+      <Dialog
+        header="Shared Accessions Info"
+        v-model:visible="showSharedInfoDialog"
+        modal
+        closable
+        :style="dialogStyle"
+      >
+        <p>
+          <strong>Shared Accessions</strong> represent the <strong>intersection</strong> of accessions across all selected alleles.
+          Only accessions that appear in every allele’s dataset are included.
+        </p>
+      </Dialog>
+  
+      <!-- Combined Accessions Info Dialog -->
+      <Dialog
+        header="Combined Accessions Info"
+        v-model:visible="showCombinedInfoDialog"
+        modal
+        closable
+        :style="dialogStyle"
+      >
+        <p>
+          <strong>Combined Accessions</strong> represent the <strong>union</strong> of accessions across all selected alleles.
+          This list includes every unique accession found in any allele’s dataset.
+        </p>
       </Dialog>
     </div>
   </template>
@@ -176,6 +229,9 @@
         searchQuery: "",
         searchSharedQuery: "",
         windowWidth: window.innerWidth,
+        // New dialog controls for the info popups:
+        showSharedInfoDialog: false,
+        showCombinedInfoDialog: false,
       };
     },
     computed: {
@@ -248,31 +304,16 @@
           const { data } = await axiosInstance.post("posts/alleleAccessions/", {
             alleleid: alleleIds,
           });
-          const alleleToAccessions = {};
-          data.forEach(item => {
-            alleleToAccessions[item.alleleid] = item.accessions;
-          });
-  
-          const flattenedData = [];
-          let projectCounter = 0;
-          let ownerCounter = 0;
-  
-          this.getSelectedSequences.forEach(seq => {
-            const accessions = alleleToAccessions[seq.alleleid] || [];
-            const owner = `Owner ${++ownerCounter}`;
-            const project = `Proj ${projectCounter % 3}`;
-            projectCounter++;
-            accessions.forEach(accession => {
-              flattenedData.push({
-                uniqueKey: `${seq.alleleid}-${accession}-${flattenedData.length}`,
-                alleleid: seq.alleleid,
-                accession,
-                source: project,
-                owner,
-              });
-            });
-          });
-          this.detailedInfo = flattenedData;
+          
+          // data is now an array of objects with keys: alleleid, accession, programs, sources.
+          // Flatten into datatable rows with comma-separated strings.
+          this.detailedInfo = data.map(item => ({
+            uniqueKey: `${item.alleleid}-${item.accession}`,
+            alleleid: item.alleleid,
+            accession: item.accession,
+            source: item.sources.length ? item.sources.join(", ") : "",
+            owner: item.programs.length ? item.programs.join(", ") : ""
+          }));
         } catch (error) {
           console.error("Error fetching detailed information:", error);
           this.detailedInfo = [];
@@ -296,9 +337,9 @@
   
         this.selectedAlleleDetail = {
           alleleid: allele.alleleid,
-          sequence: allele.sequence,
+          sequence: allele.allelesequence,
           info: allele.info,
-          associatedTrait: allele.associatedTrait,
+          associatedTrait: allele.associated_trait,
           associatedProject,
           owner,
           totalAccessions,
@@ -446,14 +487,33 @@
       max-width: 90vw !important;
     }
   }
-  .text-xs {
-    font-size: 0.75rem;
-  }
   .mb-4 {
     margin-bottom: 1rem;
   }
   .mb-2 {
     margin-bottom: 0.5rem;
   }
+  /* Header container to position the header text and info icon */
+  .header-container {
+    display: inline-flex;
+    align-items: center;
+  }
+  
+  /* Make the header text bold */
+  .header-container span {
+    font-weight: bold;
+  }
+  
+  /* Position the info icon directly next to the header text */
+  .info-icon {
+    margin-left: 0.2rem;
+  }
+
+  .sequence-modal-wrap {
+  white-space: pre-wrap;
+  word-break: break-word;
+
+}
+
   </style>
   

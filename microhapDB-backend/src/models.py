@@ -225,34 +225,39 @@ class SequencePresence(Base):
     )
 
 
-# Configuration for the database URL
-DATABASE_URL = "postgresql+asyncpg://postgres_user:bipostgres@postgres/microhaplotype"
-# SYNC_DATABASE_URL = "postgresql://postgres_user:bipostgres@postgres/microhaplotype"
-
-# Create an asynchronous engine
-engine = create_async_engine(DATABASE_URL, echo=True)
+# # Configuration for the database URL
+# #LOCAL
+# # DATABASE_URL = "postgresql+asyncpg://postgres_user:bipostgres@postgres/microhaplotype"
+# #AWS
+# DATABASE_URL= "postgresql://postgres:bipostgres@database-1.czwgjenckjul.us-east-2.rds.amazonaws.com:5432/haplosearch"
+# # SYNC_DATABASE_URL = "postgresql://postgres_user:bipostgres@postgres/microhaplotype"
+# # AWS Sync (for Alembic)
+# SYNC_DATABASE_URL = "postgresql://postgres:bipostgres@database-1.czwgjenckjul.us-east-2.rds.amazonaws.com:5432/haplosearch"
+#
+# # Create an asynchronous engine
+# engine = create_async_engine(DATABASE_URL, echo=True)
 # sync_engine = create_engine(SYNC_DATABASE_URL, echo=True)
-
-# Configure sessionmaker for asynchronous usage
-AsyncSessionLocal = sessionmaker(
-    bind=engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-    autocommit=False,
-    autoflush=False,
-)
-
-
-# # Configure sessionmaker for synchronous usage
-# SyncSessionLocal = sessionmaker(
-#     bind=sync_engine,
+#
+# # Configure sessionmaker for asynchronous usage
+# AsyncSessionLocal = sessionmaker(
+#     bind=engine,
+#     class_=AsyncSession,
+#     expire_on_commit=False,
 #     autocommit=False,
 #     autoflush=False,
 # )
-
-async def get_session():
-    async with AsyncSessionLocal() as session:
-        yield session
+#
+#
+# # # Configure sessionmaker for synchronous usage
+# # SyncSessionLocal = sessionmaker(
+# #     bind=sync_engine,
+# #     autocommit=False,
+# #     autoflush=False,
+# # )
+#
+# async def get_session():
+#     async with AsyncSessionLocal() as session:
+#         yield session
 
 
 # def get_sync_session():
@@ -263,9 +268,9 @@ async def get_session():
 #         db.close()
 
 # Function to initialize the database and create partitions
-async def init_db():
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+# async def init_db():
+#     async with engine.begin() as conn:
+#         await conn.run_sync(Base.metadata.create_all)
 
 
 # Use SQLAlchemy event listener to create partitions after the base table is created

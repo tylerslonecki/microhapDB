@@ -6,21 +6,22 @@ import asyncio
 from fastapi import APIRouter, File, UploadFile, HTTPException, Depends, Response, Request, BackgroundTasks, Form
 from starlette.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from .models import Sequence, Accession, AllelePresence, get_session, UploadBatch, SequenceLog, Program, \
-    SequencePresence, \
+    SequencePresence, program_source_association, \
     JobStatusResponse, \
     QueryRequest, PaginatedSequenceResponse, SequenceResponse, PaginatedSequenceRequest, \
-    AsyncSessionLocal, ColumnFilter, AccessionResponse, AccessionRequest, Source, SourceResponse, SourceCreate, \
-    SupplementalJobStatusResponse
+    ColumnFilter, AccessionResponse, AccessionRequest, Source, SourceResponse, SourceCreate, \
+    SupplementalJobStatusResponse, AccessionDetailResponse
+from src.database import AsyncSessionLocal
 from .service import get_all_batch_summaries, get_new_sequences_for_batch, get_total_unique_sequences, \
     generate_upset_plot, generate_line_chart, generate_line_chart_data
 import pandas as pd
 import io
 import os
 from datetime import datetime, timedelta
-from sqlalchemy import func, text, or_
+from sqlalchemy import func, text, or_, insert, and_
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.auth.orcid_oauth import get_current_user
@@ -36,7 +37,7 @@ last_report_time = None
 cached_report = None
 
 jobs = {}
-jobs_eav = {}
+jobs_pav = {}
 jobs_supplemental = {}
 
 
@@ -76,108 +77,159 @@ async def get_next_version_number(db: AsyncSession, species: str) -> int:
     return (max_version or 0) + 1
 
 
-async def process_upload(file_data, job_id, species, program_id):
+import uuid
+
+async def process_upload(file_data: bytes, job_id: str, species: str, program_id: int, source_name: str):
     async with AsyncSessionLocal() as db:
         try:
+            # --- Create or update the Program-Source association ---
+            # Retrieve the Program record
+            stmt = select(Program).where(Program.id == program_id)
+            result = await db.execute(stmt)
+            program_obj = result.scalar_one_or_none()
+            if not program_obj:
+                logging.error("Program not found for ID %s", program_id)
+                return
+
+            # Look up the Source by name; if it doesn't exist, create it.
+            stmt = select(Source).where(Source.name == source_name)
+            result = await db.execute(stmt)
+            source_obj = result.scalar_one_or_none()
+            if not source_obj:
+                source_obj = Source(name=source_name)
+                db.add(source_obj)
+                await db.flush()  # assign an ID to source_obj
+
+            # Associate the source with the program if not already linked.
+            stmt = select(Program).options(selectinload(Program.sources)).where(Program.id == program_id)
+            result = await db.execute(stmt)
+            program_obj = result.scalar_one_or_none()
+
+            source_already_linked = any(source.id == source_obj.id for source in program_obj.sources)
+
+            # If not already linked, add the association
+            if not source_already_linked:
+                program_obj.sources.append(source_obj)
+                await db.flush()  # Ensure the association is persisted
+
+            # --- Process the CSV upload as before ---
             df = pd.read_csv(io.StringIO(file_data.decode('utf-8')), header=0, low_memory=False)
+            total_rows = len(df)
+            logging.info(f"Total rows to process: {total_rows}")
+
+            # Pre-fetch existing sequences for the given species using unique alleleIDs (assumed to be in the first column)
+            unique_alleleids = df.iloc[:, 0].unique().tolist()
+            stmt = select(Sequence.alleleid, Sequence.hapid).where(
+                Sequence.species == species,
+                Sequence.alleleid.in_(unique_alleleids)
+            )
+            result = await db.execute(stmt)
+            existing_sequences = {row.alleleid: row.hapid for row in result}
+            logging.info(f"Found {len(existing_sequences)} existing sequences")
+
+            # Create a new upload batch (flush to get batch.id)
             version = await get_next_version_number(db, species)
             batch = UploadBatch(program_id=program_id, species=species, version=version)
             db.add(batch)
-            await db.flush()  # Flush to get batch.id
+            await db.flush()
 
-            # Remove code that ensures 'hapid' column and assigns it to df
-            # No DataFrame modifications related to hapid here
+            # Prepare lists for bulk insertion
+            new_sequences_data = []  # For new Sequence rows
+            new_logs_data = []       # For SequenceLog rows
+            hapids_processed = []    # For presence check
+            new_sequences_dict = {}  # Map alleleid -> hapid for new sequences in this job
 
-            for index in range(len(df)):
-                alleleid = df.iloc[index, 0]
-                allelesequence = df.iloc[index, 2]
+            # Process each row using itertuples for fast iteration
+            for i, row in enumerate(df.itertuples(index=False)):
+                if i % 100 == 0:
+                    logging.info(f"Processing row {i}/{total_rows}")
+                # Assume first column is alleleid and third column is allelesequence.
+                alleleid = getattr(row, df.columns[0])
+                allelesequence = getattr(row, df.columns[2])
 
-                # Check for existing sequence by alleleid
-                stmt = select(Sequence).where(
-                    Sequence.alleleid == alleleid,
-                    Sequence.species == species
-                )
-                result = await db.execute(stmt)
-                existing = result.scalar_one_or_none()
+                # Check if the sequence already exists
+                if alleleid in existing_sequences:
+                    hapid = existing_sequences[alleleid]
+                    was_new = False
+                elif alleleid in new_sequences_dict:
+                    hapid = new_sequences_dict[alleleid]
+                    was_new = True
+                else:
+                    hapid = str(uuid.uuid4())
+                    new_sequences_dict[alleleid] = hapid
+                    new_sequences_data.append({
+                        "hapid": hapid,
+                        "alleleid": alleleid,
+                        "allelesequence": allelesequence,
+                        "species": species,
+                        "info": None,
+                        "associated_trait": None,
+                    })
+                    was_new = True
 
-                try:
-                    if not existing:
-                        new_hap = Sequence(
-                            alleleid=alleleid,
-                            allelesequence=allelesequence,
-                            species=species
-                        )
-                        db.add(new_hap)
-                        await db.flush()  # Flush to get hapid
-                        hapid = new_hap.hapid
-                        was_new = True
-                    else:
-                        hapid = existing.hapid
-                        was_new = False
-                except IntegrityError:
-                    await db.rollback()
-                    # If inserted by another transaction, fetch again
-                    result = await db.execute(stmt)
-                    existing = result.scalar_one_or_none()
-                    if existing:
-                        hapid = existing.hapid
-                        was_new = False
-                    else:
-                        raise ValueError(
-                            f"Failed to retrieve or create Sequence for alleleid: {alleleid}, species: {species}")
+                new_logs_data.append({
+                    "hapid": hapid,
+                    "batch_id": batch.id,
+                    "was_new": was_new,
+                    "species": species,
+                    "alleleid": alleleid,
+                    "allelesequence": allelesequence
+                })
+                hapids_processed.append(hapid)
 
-                # Log the sequence
-                log_entry = SequenceLog(
-                    hapid=hapid,
-                    batch_id=batch.id,
-                    was_new=was_new,
-                    species=species,
-                    alleleid=alleleid,
-                    allelesequence=allelesequence
-                )
-                db.add(log_entry)
+            # Bulk insert new Sequence rows (if any)
+            if new_sequences_data:
+                await db.execute(insert(Sequence), new_sequences_data)
 
-                # Update SequencePresence
-                presence_stmt = select(SequencePresence).where(
-                    SequencePresence.program_id == program_id,
-                    SequencePresence.hapid == hapid,
-                    SequencePresence.species == species
-                )
-                result = await db.execute(presence_stmt)
-                presence_entry = result.scalar_one_or_none()
+            # Bulk insert SequenceLog rows
+            if new_logs_data:
+                await db.execute(insert(SequenceLog), new_logs_data)
 
-                if not presence_entry:
-                    # Add new presence record
-                    presence_entry = SequencePresence(
-                        program_id=program_id,
-                        hapid=hapid,
-                        presence=True,
-                        species=species
-                    )
-                    db.add(presence_entry)
+            # Pre-fetch existing SequencePresence for all processed hapids
+            hapid_set = set(hapids_processed)
+            stmt_presence = select(SequencePresence.hapid).where(
+                SequencePresence.program_id == program_id,
+                SequencePresence.species == species,
+                SequencePresence.hapid.in_(hapid_set)
+            )
+            result_presence = await db.execute(stmt_presence)
+            existing_presence_hapids = {row.hapid for row in result_presence}
 
-            # Commit transaction after all operations
+            # Prepare new SequencePresence rows for hapids that do not have an entry yet
+            new_presence_data = []
+            for hapid in hapid_set:
+                if hapid not in existing_presence_hapids:
+                    new_presence_data.append({
+                        "program_id": program_id,
+                        "hapid": hapid,
+                        "species": species,
+                        "presence": True
+                    })
+            if new_presence_data:
+                await db.execute(insert(SequencePresence), new_presence_data)
+
+            # Final commit: persist all changes
             await db.commit()
 
-            # Convert DataFrame back to CSV (no hapid column added)
+            # Optionally, store CSV output for logging or download purposes
             output_stream = io.StringIO()
             df.to_csv(output_stream, index=False, header=False)
             output_stream.seek(0)
-            output_csv = output_stream.getvalue().encode('utf-8')
             jobs[job_id]['file'] = output_stream.getvalue()
             jobs[job_id]['status'] = 'Completed'
             jobs[job_id]['completion_time'] = datetime.utcnow()
+
         except Exception as e:
             await db.rollback()
             jobs[job_id]['status'] = 'Failed'
-            print(f"Error processing job {job_id}: {str(e)}")
+            logging.error(f"Error processing job {job_id}: {str(e)}")
 
 
-# Helper Functions for EAV Model
 
-# Helper Functions for EAV Model
 
-async def add_accessions_eav(session: AsyncSession, accession_names: List[str]):
+
+
+async def add_accessions_pav(session: AsyncSession, accession_names: List[str]):
     """
     Adds new accessions to the database if they do not already exist.
     """
@@ -205,7 +257,7 @@ async def add_accessions_eav(session: AsyncSession, accession_names: List[str]):
             raise HTTPException(status_code=500, detail="Failed to add new accessions due to a database error.")
 
 
-async def get_accession_map_eav(session: AsyncSession) -> Dict[str, int]:
+async def get_accession_map_pav(session: AsyncSession) -> Dict[str, int]:
     """
     Retrieves a mapping from accession_name to accession_id.
     """
@@ -214,7 +266,7 @@ async def get_accession_map_eav(session: AsyncSession) -> Dict[str, int]:
     return {acc.accession_name: acc.accession_id for acc in accessions}
 
 
-async def add_allele_accessions_eav(session: AsyncSession, allele_id: str, species: str, accession_map: Dict[str, int],
+async def add_allele_accessions_pav(session: AsyncSession, allele_id: str, species: str, accession_map: Dict[str, int],
                                     accessions_presence: Dict[str, int]):
     """
     Adds or updates AlleleAccession records based on presence data.
@@ -246,77 +298,110 @@ async def add_allele_accessions_eav(session: AsyncSession, allele_id: str, speci
                 f"IntegrityError: Possibly duplicate AllelePresence records for allele '{allele_id}' and species '{species}'")
 
 
-async def process_eav_upload(file_data: bytes, job_id: str, species: str, program_id: int):
+async def process_pav_upload(file_data: bytes, job_id: str, species: str, program_id: int):
     async with AsyncSessionLocal() as db:
-        logging.info("Here-3")
         try:
-            logging.info("Here-2")
-            # Read the CSV file into a DataFrame
+            # Read CSV file into a DataFrame
             df = pd.read_csv(io.StringIO(file_data.decode('utf-8')), header=0, low_memory=False)
-            logging.info("Here-1.5")
-            # Validate CSV Structure
+
+            # Validate CSV structure: must have 'AlleleID' column and at least one accession column
             if 'AlleleID' not in df.columns:
                 raise HTTPException(status_code=400, detail="CSV must contain 'AlleleID' as the first column.")
-            logging.info("Here-1.25")
-            # Extract accession names from the header (excluding the first column 'AlleleID')
             accession_names = list(df.columns[1:])
-            logging.info("Here-1")
             if not accession_names:
                 raise HTTPException(status_code=400, detail="CSV must contain at least one accession column.")
 
-            # Add accessions to the database
-            await add_accessions_eav(db, accession_names)
+            # Add any new accessions and retrieve the accession mapping
+            await add_accessions_pav(db, accession_names)
+            accession_map = await get_accession_map_pav(db)
 
-            # Retrieve accession_id mapping
-            accession_map = await get_accession_map_eav(db)
-            logging.info("Here0")
-            # Iterate over each row in the DataFrame
-            for _, row in df.iterrows():
-                alleleid = row['AlleleID']
-                # Assuming 'AlleleSequence' is in a specific column, e.g., 'AlleleSequence'
-                # Since we're not creating or modifying sequences, we ignore 'AlleleSequence' here
-                # If needed, you can validate or use it for other purposes
+            # Pre-fetch all allele IDs present in the CSV
+            allele_ids = df['AlleleID'].dropna().unique().tolist()
+            stmt = select(Sequence.alleleid).where(
+                Sequence.alleleid.in_(allele_ids),
+                Sequence.species == species
+            )
+            result = await db.execute(stmt)
+            # Build a set of allele IDs that exist in the Sequence table
+            existing_alleles = {row[0] for row in result.fetchall()}
 
-                if not alleleid:
-                    logging.warning("Missing 'AlleleID' value in a row. Skipping.")
-                    continue  # Skip rows without an allele identifier
-                logging.info("Here1")
-                # Check if the allele exists in the Sequence table
-                stmt = select(Sequence).where(
-                    Sequence.alleleid == alleleid,
-                    Sequence.species == species
-                )
-                logging.info("Here2")
-                result = await db.execute(stmt)
-                existing_sequence = result.scalar_one_or_none()
+            # Accumulate new AllelePresence records (for presence == 1)
+            allele_presence_bulk = []
 
-                if not existing_sequence:
+            # Process each row using itertuples for better performance
+            for row in df.itertuples(index=False):
+                alleleid = getattr(row, 'AlleleID')
+                if alleleid not in existing_alleles:
                     logging.warning(f"AlleleID '{alleleid}' does not exist in the Sequence table. Skipping.")
-                    continue  # Skip alleles that do not exist
+                    continue
 
-                # Prepare allele_accessions data (presence/absence)
-                accessions_presence = {acc: row.get(acc, 0) for acc in accession_names}
+                # Build the presence mapping from the row (defaulting to 0 if missing)
+                accessions_presence = {acc: getattr(row, acc, 0) for acc in accession_names}
 
-                # Add or update AlleleAccession records
-                await add_allele_accessions_eav(db, alleleid, species, accession_map, accessions_presence)
+                for acc_name, presence in accessions_presence.items():
+                    if presence == 1:
+                        accession_id = accession_map.get(acc_name)
+                        if accession_id is None:
+                            logging.warning(f"Accession '{acc_name}' not found. Skipping.")
+                            continue
+                        allele_presence_bulk.append({
+                            "alleleid": alleleid,
+                            "species": species,
+                            "accession_id": accession_id
+                        })
 
-            # Commit transaction after all operations
+            # Bulk insert all AllelePresence records (if any)
+            if allele_presence_bulk:
+                await db.execute(insert(AllelePresence), allele_presence_bulk)
+
+            # Final commit: all changes are persisted in one go
             await db.commit()
 
-            # Convert DataFrame back to CSV (no hapid column added)
+            # (Optional) Convert the DataFrame back to CSV for download/logging purposes
             output_stream = io.StringIO()
             df.to_csv(output_stream, index=False, header=False)
             output_stream.seek(0)
-            output_csv = output_stream.getvalue().encode('utf-8')
-            jobs_eav[job_id]['file'] = output_stream.getvalue()
-            jobs_eav[job_id]['status'] = 'Completed'
-            jobs_eav[job_id]['completion_time'] = datetime.utcnow()
-            logging.info(f"EAV Job {job_id} completed successfully.")
+            jobs_pav[job_id]['file'] = output_stream.getvalue()
+            jobs_pav[job_id]['status'] = 'Completed'
+            jobs_pav[job_id]['completion_time'] = datetime.utcnow()
+            logging.info(f"PAV Job {job_id} completed successfully.")
         except Exception as e:
             await db.rollback()
-            jobs_eav[job_id]['status'] = 'Failed'
-            jobs_eav[job_id]['error'] = str(e)
-            logging.error(f"Error processing EAV job {job_id}: {str(e)}")
+            jobs_pav[job_id]['status'] = 'Failed'
+            jobs_pav[job_id]['error'] = str(e)
+            logging.error(f"Error processing PAV job {job_id}: {str(e)}")
+
+
+@router.post("/upload/preview")
+async def preview_upload(
+    file: UploadFile = File(...),
+    species: str = Form(...),
+    db: AsyncSession = Depends(lambda: AsyncSessionLocal())
+):
+    """
+    Preview the uploaded CSV to identify alleleIDs that already exist.
+    This endpoint does not commit any data.
+    """
+    try:
+        contents = await file.read()
+        df = pd.read_csv(io.StringIO(contents.decode('utf-8')), header=0, low_memory=False)
+        unique_alleleids = df.iloc[:, 0].unique().tolist()
+        total_count = len(unique_alleleids)  # Total alleleIDs in the file
+        stmt = select(Sequence.alleleid).where(
+            Sequence.species == species,
+            Sequence.alleleid.in_(unique_alleleids)
+        )
+        result = await db.execute(stmt)
+        existing_alleleids = [row[0] for row in result]
+        duplicate_count = len(existing_alleleids)
+        return {
+            "duplicate_count": duplicate_count,
+            "duplicates": existing_alleleids,
+            "total_count": total_count  # Added so the modal can display "X out of Y..."
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 
 @router.post("/upload/")
@@ -325,21 +410,22 @@ async def upload_microhaplotype_data(
         file: UploadFile = File(...),
         species: str = Form(...),
         program_name: str = Form(...),
+        source_name: str = Form(...),  # New form field for the source
         background_tasks: BackgroundTasks = BackgroundTasks(),
         db: AsyncSession = Depends(get_session)
 ):
-    # Get or create program based on the provided program_name
-    result = await db.execute(select(Program).filter(Program.name == program_name))
+    # Get or create the Program record based on program_name
+    stmt = select(Program).filter(Program.name == program_name)
+    result = await db.execute(stmt)
     existing_program = result.scalar_one_or_none()
-
     if not existing_program:
         new_program = Program(name=program_name)
         db.add(new_program)
         await db.commit()
         await db.refresh(new_program)
-        program_id = new_program.id
+        program_obj = new_program
     else:
-        program_id = existing_program.id
+        program_obj = existing_program
 
     job_id = str(uuid4())
     contents = await file.read()
@@ -349,14 +435,23 @@ async def upload_microhaplotype_data(
         'file_name': file.filename
     }
 
-    # Add program_id to the background task
-    asyncio.create_task(process_upload(file_data=contents, job_id=job_id,
-                                       species=species, program_id=program_id))
-    return {"message": "Processing started. Check job status."}
+    # Start background processing of the upload,
+    # now passing source_name along with program_id.
+    asyncio.create_task(
+        process_upload(
+            file_data=contents,
+            job_id=job_id,
+            species=species,
+            program_id=program_obj.id,
+            source_name=source_name
+        )
+    )
+    return {"message": "Processing started. Check job status.", "job_id": job_id}
 
 
-@router.post("/eav_upload/")
-async def upload_eav_data(
+
+@router.post("/pav_upload/")
+async def upload_pav_data(
         request: Request,
         file: UploadFile = File(...),
         species: str = Form(...),
@@ -365,11 +460,11 @@ async def upload_eav_data(
         db: AsyncSession = Depends(get_session)
 ):
     """
-    Endpoint to upload EAV-formatted microhaplotype data.
+    Endpoint to upload PAV-formatted microhaplotype data.
     """
     # Validate file type
     if file.content_type != "text/csv":
-        raise HTTPException(status_code=400, detail="Only CSV files are supported for EAV uploads.")
+        raise HTTPException(status_code=400, detail="Only CSV files are supported for PAV uploads.")
 
     # Get or create program based on the provided program_name
     result = await db.execute(select(Program).where(Program.name == program_name))
@@ -392,17 +487,17 @@ async def upload_eav_data(
 
     job_id = str(uuid4())
     contents = await file.read()
-    jobs_eav[job_id] = {
+    jobs_pav[job_id] = {
         'status': 'Processing',
         'submission_time': datetime.utcnow(),
         'file_name': file.filename
     }
 
-    # Start the background task for EAV processing
-    asyncio.create_task(process_eav_upload(file_data=contents, job_id=job_id,
+    # Start the background task for PAV processing
+    asyncio.create_task(process_pav_upload(file_data=contents, job_id=job_id,
                                            species=species, program_id=program_id))
-    logging.info(f"Started EAV processing job {job_id} for file {file.filename}")
-    return {"job_id": job_id, "message": "EAV processing started. Check job status."}
+    logging.info(f"Started PAV processing job {job_id} for file {file.filename}")
+    return {"job_id": job_id, "message": "PAV processing started. Check job status."}
 
 
 @router.get("/report_data")
@@ -450,10 +545,10 @@ async def list_jobs():
     return job_list
 
 
-@router.get("/eav_jobStatus", response_model=List[JobStatusResponse])
-async def list_eav_jobs():
+@router.get("/pav_jobStatus", response_model=List[JobStatusResponse])
+async def list_pav_jobs():
     """
-    Endpoint to list all EAV upload jobs and their statuses.
+    Endpoint to list all PAV upload jobs and their statuses.
     """
     job_list = [{
         "job_id": job_id,
@@ -462,13 +557,13 @@ async def list_eav_jobs():
         "completion_time": job.get('completion_time'),
         "file_name": job.get('file_name'),
         "error": job.get('error')
-    } for job_id, job in jobs_eav.items()]
+    } for job_id, job in jobs_pav.items()]
 
     return job_list
 
 
-@router.get("/eav_alleles/{alleleid}/accessions")
-async def get_eav_accessions_for_allele(alleleid: str, db: AsyncSession = Depends(get_session)):
+@router.get("/pav_alleles/{alleleid}/accessions")
+async def get_pav_accessions_for_allele(alleleid: str, db: AsyncSession = Depends(get_session)):
     """
     Retrieve all accessions where a specific allele is present.
     """
@@ -582,10 +677,10 @@ async def get_sequences(
     )
 
 
-@router.post("/alleleAccessions", response_model=List[AccessionResponse])
+@router.post("/alleleAccessions", response_model=List[AccessionDetailResponse])
 async def get_accessions_by_allele(
-        request: AccessionRequest,
-        db: AsyncSession = Depends(get_session)
+    request: AccessionRequest,
+    db: AsyncSession = Depends(get_session)
 ):
     if not request.alleleid:
         raise HTTPException(
@@ -593,33 +688,73 @@ async def get_accessions_by_allele(
             detail="List of alleleid cannot be empty."
         )
 
-    # Query AllelePresence joined with Accession
+    # Build query that joins AllelePresence -> Accession -> Sequence -> SequencePresence -> Program
+    # and left outer joins Program to Source via the association table.
     stmt = (
-        select(AllelePresence.alleleid, Accession.accession_name)
+        select(
+            AllelePresence.alleleid,
+            Accession.accession_name,
+            Program.name.label("program_name"),
+            Source.name.label("source_name")
+        )
         .join(Accession, AllelePresence.accession_id == Accession.accession_id)
+        # Join Sequence using both alleleid and species (Sequence is unique per allele/species)
+        .join(Sequence, and_(
+            AllelePresence.alleleid == Sequence.alleleid,
+            AllelePresence.species == Sequence.species
+        ))
+        # Join to SequencePresence to get program info
+        .join(SequencePresence, and_(
+            Sequence.hapid == SequencePresence.hapid,
+            Sequence.species == SequencePresence.species
+        ))
+        .join(Program, SequencePresence.program_id == Program.id)
+        # Left outer join to get Source info (if any)
+        .outerjoin(program_source_association, Program.id == program_source_association.c.program_id)
+        .outerjoin(Source, program_source_association.c.source_id == Source.id)
         .where(AllelePresence.alleleid.in_(request.alleleid))
     )
 
     result = await db.execute(stmt)
     records = result.fetchall()
 
-    # Organize accessions by alleleid
-    allele_to_accessions: Dict[str, List[str]] = {}
-    for alleleid, accession_name in records:
-        if alleleid not in allele_to_accessions:
-            allele_to_accessions[alleleid] = []
-        allele_to_accessions[alleleid].append(accession_name)
+    # Aggregate results by (alleleid, accession_name)
+    mapping = {}
+    for row in records:
+        key = (row.alleleid, row.accession_name)
+        if key not in mapping:
+            mapping[key] = {
+                "alleleid": row.alleleid,
+                "accession": row.accession_name,
+                "programs": set(),
+                "sources": set()
+            }
+        if row.program_name:
+            mapping[key]["programs"].add(row.program_name)
+        if row.source_name:
+            mapping[key]["sources"].add(row.source_name)
 
-    # Prepare response
-    response = [
-        AccessionResponse(
-            alleleid=alleleid,
-            accessions=accessions
+    # Log the details for each aggregated record
+    for item in mapping.values():
+        logging.info(
+            "AlleleID: %s, Accession: %s, Programs: %s, Sources: %s",
+            item["alleleid"],
+            item["accession"],
+            sorted(list(item["programs"])),
+            sorted(list(item["sources"]))
         )
-        for alleleid, accessions in allele_to_accessions.items()
-    ]
 
+    # Prepare the response: flatten the sets into sorted lists
+    response = []
+    for item in mapping.values():
+        response.append(AccessionDetailResponse(
+            alleleid=item["alleleid"],
+            accession=item["accession"],
+            programs=sorted(list(item["programs"])),
+            sources=sorted(list(item["sources"]))
+        ))
     return response
+
 
 
 @router.post("/alleleDetails", response_model=PaginatedSequenceResponse)

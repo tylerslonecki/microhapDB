@@ -1,14 +1,30 @@
 from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
-import os
+from src.models import Base
 
-# Get the database URL from the environment variable or use a default
-SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:bipostgres@localhost:5432/microhaplotype")
+# AWS Async (for FastAPI)
+DATABASE_URL = "postgresql+asyncpg://postgres:bipostgres@database-1.czwgjenckjul.us-east-2.rds.amazonaws.com:5432/haplosearch"
+# AWS Sync (for Alembic)
+SYNC_DATABASE_URL = "postgresql://postgres:bipostgres@database-1.czwgjenckjul.us-east-2.rds.amazonaws.com:5432/haplosearch"
 
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL
+# Create engines for both async and sync operations
+engine = create_async_engine(DATABASE_URL, echo=True)
+sync_engine = create_engine(SYNC_DATABASE_URL, echo=True)
+
+# Configure sessionmaker for asynchronous usage
+AsyncSessionLocal = sessionmaker(
+    bind=engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+    autocommit=False,
+    autoflush=False,
 )
-SessionLocal = sessionmaker(autocommit=True, autoflush=True, bind=engine)
 
-Base = declarative_base()
+async def get_session():
+    async with AsyncSessionLocal() as session:
+        yield session
+
+async def init_db():
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)

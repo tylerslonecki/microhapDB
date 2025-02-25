@@ -1,17 +1,6 @@
 version: '3.8'
 
 services:
-  postgres:
-    image: postgres:latest
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    environment:
-      - POSTGRES_DB=microhaplotype
-      - POSTGRES_USER=postgres_user
-      - POSTGRES_PASSWORD=bipostgres
-    networks:
-      - app-network
-
   microhap-fastapi:
     build:
       context: ./microhapDB-backend/
@@ -21,24 +10,9 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://postgres_user:bipostgres@postgres/microhaplotype
-    depends_on:
-      - postgres
+      - DATABASE_URL=postgresql://postgres:bipostgres@database-1.czwgjenckjul.us-east-2.rds.amazonaws.com:5432/haplosearch
     networks:
       - app-network
-
-#  microhap-frontend:
-#    build:
-#      context: ./microhapDB-frontend/
-#      dockerfile: Dockerfile
-#    ports:
-#      - "8080:80"
-#    volumes:
-#      - ./microhapDB-frontend:/usr/src/app
-#    depends_on:
-#      - microhap-fastapi
-#    networks:
-#      - app-network
 
   pgadmin:
     image: dpage/pgadmin4
@@ -47,14 +21,9 @@ services:
       - PGADMIN_DEFAULT_PASSWORD=admin
     ports:
       - "5050:80"
-    depends_on:
-      - postgres
     networks:
       - app-network
 
 networks:
   app-network:
     driver: bridge
-
-volumes:
-  postgres_data:

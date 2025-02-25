@@ -2,11 +2,13 @@
 
 from fastapi import FastAPI, Depends
 from fastapi.responses import RedirectResponse
+from sqlalchemy.testing.plugin.plugin_base import logging
 from src.auth.router import router as auth_router
 from src.aws.router import router as aws_router
 from src.posts.router import router as posts_router
-from src.brapi.brapi_endpoints import brapi_router
-from src.models import init_db, AsyncSessionLocal, AdminOrcid
+from src.models import AdminOrcid
+from src.database import init_db
+from src.database import  AsyncSessionLocal
 from fastapi.middleware.cors import CORSMiddleware
 from src.auth.dependencies import get_current_user, get_admin_user
 from src.auth.models import UserResponse
@@ -33,16 +35,19 @@ app.add_middleware(
 app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
 app.include_router(aws_router, prefix="/aws", tags=["AWS Integration"])
 app.include_router(posts_router, prefix="/posts", tags=["Posts"])
-app.include_router(brapi_router, prefix="/brapi", tags=["Brapi"])
+
 
 async def remove_old_jobs():
     while True:
         now = datetime.utcnow()
         for job_id in list(jobs.keys()):
             job = jobs[job_id]
-            if job['status'] == 'completed' and 'completion_time' in job:
-                if now - job['completion_time'] > timedelta(minutes=30):  # Keep jobs for 30 minutes after completion
+            # Check for jobs with status 'Completed' or 'Failed'
+            if job['status'].lower() in ['completed', 'failed'] and 'completion_time' in job:
+                # Remove if the job was completed more than 5 minutes ago
+                if now - job['completion_time'] > timedelta(minutes=5):
                     del jobs[job_id]
+                    logging.info(f"Job {job_id} removed after 5 minutes.")
         await asyncio.sleep(60)  # Run cleanup every 60 seconds
 
 @app.on_event("startup")
@@ -68,7 +73,7 @@ print("Current Working Directory:", os.getcwd())
 
 @app.get("/")
 def read_root():
-    return {"Microhap Database: v0.1.0"}
+    return {"HaploSearch Database: v0.1.0"}
 
 @app.get("/login")
 def redirect_to_login():

@@ -49,7 +49,7 @@
   
   // Register all Chart.js components
   Chart.register(...registerables);
-
+  
   const speciesOptions = [
     { label: 'alfalfa', value: 'alfalfa' },
     { label: 'sweetpotato', value: 'sweetpotato' },
@@ -66,9 +66,7 @@
     { label: 'chr6', value: 'chr6' },
     { label: 'chr7', value: 'chr7' },
     { label: 'chr8', value: 'chr8' }
-
   ];
-  
   
   // Reactive variables for dropdown selections and histogram data
   const selectedChromosome = ref('');
@@ -127,6 +125,8 @@
           backgroundColor: 'rgba(75, 192, 192, 0.4)',
           borderColor: 'rgba(75, 192, 192, 1)',
           borderWidth: 1,
+          // Adding a slight shadow effect for enhanced visual appeal
+          hoverBackgroundColor: 'rgba(75, 192, 192, 0.6)'
         }]
       },
       options: {
@@ -135,13 +135,52 @@
             beginAtZero: true,
             title: {
               display: true,
-              text: 'Allele Count'
+              text: 'Allele Count',
+              font: {
+                size: 16, // Bigger font size for the title
+                weight: 'bold' // Bold font weight
+              }
+            },
+            ticks: {
+              font: {
+                size: 12
+              }
+            },
+            grid: {
+              color: 'rgba(0, 0, 0, 0.1)' // Lighter gridlines
             }
           },
           x: {
             title: {
               display: true,
-              text: 'Locus'
+              text: 'Locus',
+              font: {
+                size: 16,
+                weight: 'bold'
+              }
+            },
+            ticks: {
+              font: {
+                size: 12
+              }
+            },
+            grid: {
+              display: false
+            }
+          }
+        },
+        plugins: {
+          legend: {
+            display: false // Hiding legend as the chart has a single dataset
+          },
+          tooltip: {
+            backgroundColor: 'rgba(0,0,0,0.7)',
+            titleFont: {
+              size: 14,
+              weight: 'bold'
+            },
+            bodyFont: {
+              size: 12
             }
           }
         }

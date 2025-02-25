@@ -155,6 +155,16 @@ export default {
           route: '/',
         },
         {
+          label: 'Query',
+          icon: 'pi pi-search',
+          route: '/query',
+        },
+        {
+          label: 'Visualizations',
+          icon: 'pi pi-chart-bar',
+          route: '/visualizations',
+        },
+        {
           label: 'Database Report',
           icon: 'pi pi-chart-bar',
           route: '/report',
@@ -165,16 +175,6 @@ export default {
           route: '/system-administration',
           // Only visible if the user is an admin
           visible: this.isAdmin,
-        },
-        {
-          label: 'Query',
-          icon: 'pi pi-search',
-          route: '/query',
-        },
-        {
-          label: 'Visualizations',
-          icon: 'pi pi-chart-bar',
-          route: '/visualizations',
         },
       ],
       userMenuOptions: [],
@@ -266,6 +266,10 @@ export default {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  transform: scale(0.8);
+  transform-origin: top left;
+  width: calc(100% / 0.8);
+  height: calc(100% / 0.8);
 }
 
 /* Menubar styling */
@@ -279,7 +283,7 @@ export default {
 
 /* Logo styling */
 .menubar-logo {
-  height: 40px;
+  height: 50px;
   object-fit: contain;
   border-radius: 8px;
   border: 2px solid #ffffff;
@@ -350,7 +354,7 @@ export default {
 
   /* Menubar logo smaller on mobile */
   .menubar-logo {
-    height: 35px;
+    height: 50px;
   }
 }
 
