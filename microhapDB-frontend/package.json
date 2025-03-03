@@ -10,6 +10,7 @@
   "dependencies": {
     "axios": "^1.6.7",
     "chart.js": "^3.7.0",
+    "chartjs-plugin-zoom": "^2.2.0",
     "core-js": "^3.8.3",
     "d3": "7.9.0",
     "js-cookie": "^3.0.5",

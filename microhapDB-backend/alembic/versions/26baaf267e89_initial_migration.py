@@ -1,15 +1,15 @@
-"""Initial migration
+"""Initial migration with natural keys and database versioning
 
 Revision ID: 26baaf267e89
-Revises: 
-Create Date: 2025-02-12 12:10:38.017609
+Revises:
+Create Date: 2025-02-26 12:10:38.017609
 
 """
 from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
-
+from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = '26baaf267e89'
@@ -28,6 +28,7 @@ def upgrade() -> None:
     )
     op.create_index('idx_accession_name', 'accessions', ['accession_name'], unique=False)
     op.create_index(op.f('ix_accessions_accession_id'), 'accessions', ['accession_id'], unique=False)
+
     op.create_table('programs',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('name', sa.String(), nullable=False),
@@ -36,20 +37,7 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('name')
     )
-    op.create_table('sequence_table',
-    sa.Column('hapid', sa.UUID(), nullable=False),
-    sa.Column('alleleid', sa.String(), nullable=False),
-    sa.Column('allelesequence', sa.Text(), nullable=False),
-    sa.Column('species', sa.String(), nullable=False),
-    sa.Column('info', sa.Text(), nullable=True),
-    sa.Column('associated_trait', sa.Text(), nullable=True),
-    sa.PrimaryKeyConstraint('hapid', 'species'),
-    sa.UniqueConstraint('alleleid', 'species', name='uix_alleleid_species'),
-    sa.UniqueConstraint('allelesequence', 'species', name='uix_allelesequence_species'),
-    postgresql_partition_by='LIST (species)'
-    )
-    op.create_index(op.f('ix_sequence_table_alleleid'), 'sequence_table', ['alleleid'], unique=False)
-    op.create_index(op.f('ix_sequence_table_species'), 'sequence_table', ['species'], unique=False)
+
     op.create_table('sources',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('name', sa.String(), nullable=False),
@@ -59,6 +47,7 @@ def upgrade() -> None:
     sa.UniqueConstraint('name')
     )
     op.create_index(op.f('ix_sources_id'), 'sources', ['id'], unique=False)
+
     op.create_table('users',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('full_name', sa.String(), nullable=False),
@@ -68,6 +57,7 @@ def upgrade() -> None:
     )
     op.create_index(op.f('ix_users_id'), 'users', ['id'], unique=False)
     op.create_index(op.f('ix_users_orcid'), 'users', ['orcid'], unique=True)
+
     op.create_table('admin_orcids',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=True),
@@ -77,17 +67,22 @@ def upgrade() -> None:
     sa.UniqueConstraint('orcid'),
     sa.UniqueConstraint('user_id')
     )
-    op.create_table('allele_presence',
-    sa.Column('alleleid', sa.String(), nullable=False),
+
+    # Create database_versions table (replacing upload_batches)
+    op.create_table('database_versions',
+    sa.Column('version', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('species', sa.String(), nullable=False),
-    sa.Column('accession_id', sa.Integer(), nullable=False),
-    sa.ForeignKeyConstraint(['accession_id'], ['accessions.accession_id'], ),
-    sa.ForeignKeyConstraint(['alleleid', 'species'], ['sequence_table.alleleid', 'sequence_table.species'], ),
-    sa.PrimaryKeyConstraint('alleleid', 'species', 'accession_id'),
-    sa.UniqueConstraint('alleleid', 'accession_id', name='uix_allele_presence')
+    sa.Column('created_at', sa.DateTime(), nullable=True),
+    sa.Column('uploaded_by', sa.Integer(), nullable=True),
+    sa.Column('program_id', sa.Integer(), nullable=False),
+    sa.Column('description', sa.Text(), nullable=True),
+    sa.Column('changes_summary', sa.Text(), nullable=True),
+    sa.ForeignKeyConstraint(['program_id'], ['programs.id'], ),
+    sa.ForeignKeyConstraint(['uploaded_by'], ['users.id'], ),
+    sa.PrimaryKeyConstraint('version'),
+    sa.UniqueConstraint('species', 'version', name='uix_species_version')
     )
-    op.create_index('idx_accession_id', 'allele_presence', ['accession_id'], unique=False)
-    op.create_index('idx_alleleid', 'allele_presence', ['alleleid'], unique=False)
+
     op.create_table('program_source_association',
     sa.Column('program_id', sa.Integer(), nullable=False),
     sa.Column('source_id', sa.Integer(), nullable=False),
@@ -96,27 +91,7 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('program_id', 'source_id'),
     sa.UniqueConstraint('program_id', 'source_id', name='uix_program_source')
     )
-    op.create_table('sequence_presence',
-    sa.Column('program_id', sa.Integer(), nullable=False),
-    sa.Column('hapid', sa.UUID(), nullable=False),
-    sa.Column('species', sa.String(), nullable=False),
-    sa.Column('presence', sa.Boolean(), nullable=False),
-    sa.ForeignKeyConstraint(['hapid', 'species'], ['sequence_table.hapid', 'sequence_table.species'], ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['program_id'], ['programs.id'], ),
-    sa.PrimaryKeyConstraint('program_id', 'hapid', 'species')
-    )
-    op.create_table('upload_batches',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('species', sa.String(), nullable=False),
-    sa.Column('version', sa.Integer(), nullable=False),
-    sa.Column('created_at', sa.DateTime(), nullable=True),
-    sa.Column('uploaded_by', sa.Integer(), nullable=True),
-    sa.Column('program_id', sa.Integer(), nullable=False),
-    sa.ForeignKeyConstraint(['program_id'], ['programs.id'], ),
-    sa.ForeignKeyConstraint(['uploaded_by'], ['users.id'], ),
-    sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('species', 'version', name='uix_species_version')
-    )
+
     op.create_table('user_tokens',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=False),
@@ -128,43 +103,82 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
-    op.create_table('sequence_logs',
-    sa.Column('id', sa.Integer(), sa.Identity(always=False), nullable=False),
-    sa.Column('hapid', sa.UUID(), nullable=False),
-    sa.Column('species', sa.String(), nullable=False),
-    sa.Column('batch_id', sa.Integer(), nullable=False),
-    sa.Column('was_new', sa.Boolean(), nullable=True),
+
+    # Update sequence_table to include version tracking
+    op.create_table('sequence_table',
     sa.Column('alleleid', sa.String(), nullable=False),
     sa.Column('allelesequence', sa.Text(), nullable=False),
-    sa.ForeignKeyConstraint(['batch_id'], ['upload_batches.id'], ),
-    sa.ForeignKeyConstraint(['hapid', 'species'], ['sequence_table.hapid', 'sequence_table.species'], ),
-    sa.PrimaryKeyConstraint('id', 'species'),
+    sa.Column('species', sa.String(), nullable=False),
+    sa.Column('info', sa.Text(), nullable=True),
+    sa.Column('associated_trait', sa.Text(), nullable=True),
+    sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=True),
+    sa.Column('last_modified_at', sa.DateTime(), server_default=sa.text('now()'), nullable=True),
+    sa.Column('version_added', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['version_added'], ['database_versions.version'], ),
+    sa.PrimaryKeyConstraint('alleleid', 'species'),
+    sa.UniqueConstraint('allelesequence', 'species', name='uix_allelesequence_species'),
     postgresql_partition_by='LIST (species)'
     )
-    op.create_index(op.f('ix_sequence_logs_species'), 'sequence_logs', ['species'], unique=False)
+    op.create_index(op.f('ix_sequence_table_alleleid'), 'sequence_table', ['alleleid'], unique=False)
+    op.create_index(op.f('ix_sequence_table_species'), 'sequence_table', ['species'], unique=False)
+
+    # Update allele_presence to include version tracking
+    op.create_table('allele_presence',
+    sa.Column('alleleid', sa.String(), nullable=False),
+    sa.Column('species', sa.String(), nullable=False),
+    sa.Column('accession_id', sa.Integer(), nullable=False),
+    sa.Column('version_added', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['accession_id'], ['accessions.accession_id'], ),
+    sa.ForeignKeyConstraint(['alleleid', 'species'], ['sequence_table.alleleid', 'sequence_table.species'], ),
+    sa.ForeignKeyConstraint(['version_added'], ['database_versions.version'], ),
+    sa.PrimaryKeyConstraint('alleleid', 'species', 'accession_id'),
+    sa.UniqueConstraint('alleleid', 'accession_id', name='uix_allele_presence')
+    )
+    op.create_index('idx_accession_id', 'allele_presence', ['accession_id'], unique=False)
+    op.create_index('idx_alleleid', 'allele_presence', ['alleleid'], unique=False)
+
+    # Update sequence_presence to include version tracking
+    op.create_table('sequence_presence',
+    sa.Column('program_id', sa.Integer(), nullable=False),
+    sa.Column('alleleid', sa.String(), nullable=False),
+    sa.Column('species', sa.String(), nullable=False),
+    sa.Column('presence', sa.Boolean(), nullable=False),
+    sa.Column('version_added', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['alleleid', 'species'], ['sequence_table.alleleid', 'sequence_table.species'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['program_id'], ['programs.id'], ),
+    sa.ForeignKeyConstraint(['version_added'], ['database_versions.version'], ),
+    sa.PrimaryKeyConstraint('program_id', 'alleleid', 'species')
+    )
+
+    # Create the partitions for sequence_table
+    # Note: Removed sequence_logs partitions
+    op.execute("""
+        CREATE TABLE IF NOT EXISTS sequence_table_sweetpotato PARTITION OF sequence_table FOR VALUES IN ('sweetpotato');
+        CREATE TABLE IF NOT EXISTS sequence_table_blueberry PARTITION OF sequence_table FOR VALUES IN ('blueberry');
+        CREATE TABLE IF NOT EXISTS sequence_table_alfalfa PARTITION OF sequence_table FOR VALUES IN ('alfalfa');
+        CREATE TABLE IF NOT EXISTS sequence_table_cranberry PARTITION OF sequence_table FOR VALUES IN ('cranberry');
+    """)
     # ### end Alembic commands ###
 
 
 def downgrade() -> None:
     # ### commands auto generated by Alembic - please adjust! ###
-    op.drop_index(op.f('ix_sequence_logs_species'), table_name='sequence_logs')
-    op.drop_table('sequence_logs')
-    op.drop_table('user_tokens')
-    op.drop_table('upload_batches')
     op.drop_table('sequence_presence')
-    op.drop_table('program_source_association')
     op.drop_index('idx_alleleid', table_name='allele_presence')
     op.drop_index('idx_accession_id', table_name='allele_presence')
     op.drop_table('allele_presence')
+    op.drop_index(op.f('ix_sequence_table_species'), table_name='sequence_table')
+    op.drop_index(op.f('ix_sequence_table_alleleid'), table_name='sequence_table')
+    op.drop_table('sequence_table')
+    op.drop_table('user_tokens')
+    op.drop_table('program_source_association')
+    op.drop_table('database_versions')
     op.drop_table('admin_orcids')
     op.drop_index(op.f('ix_users_orcid'), table_name='users')
     op.drop_index(op.f('ix_users_id'), table_name='users')
     op.drop_table('users')
     op.drop_index(op.f('ix_sources_id'), table_name='sources')
     op.drop_table('sources')
-    op.drop_index(op.f('ix_sequence_table_species'), table_name='sequence_table')
-    op.drop_index(op.f('ix_sequence_table_alleleid'), table_name='sequence_table')
-    op.drop_table('sequence_table')
     op.drop_table('programs')
     op.drop_index(op.f('ix_accessions_accession_id'), table_name='accessions')
     op.drop_index('idx_accession_name', table_name='accessions')

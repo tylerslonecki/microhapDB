@@ -6,7 +6,7 @@ from typing import Optional, List, Dict
 from datetime import datetime
 
 from sqlalchemy.orm import sessionmaker
-from src.models import Base, Sequence, Accession, AllelePresence, UploadBatch, SequenceLog, Program, Source, \
+from src.models import Base, Sequence, Accession, AllelePresence, DatabaseVersion, Program, Source, \
     SequencePresence, program_source_association
 from src.database import get_session, init_db  # Import the centralized functions and objects
 
@@ -24,12 +24,11 @@ class QueryRequest(BaseModel):
 
 
 class SequenceResponse(BaseModel):
-    hapid: str
     alleleid: str
-    allelesequence: str
     species: str
-    info: str = None
-    associated_trait: str = None
+    allelesequence: str
+    info: Optional[str] = None
+    associated_trait: Optional[str] = None
 
 
 class ColumnFilter(BaseModel):
@@ -86,9 +85,7 @@ class SourceResponse(SourceBase):
 class ProgramResponse(BaseModel):
     id: int
     name: str
-    description: Optional[str]
-    created_at: datetime
-    sources: List[SourceResponse] = []
+    description: str = None
 
     class Config:
         orm_mode = True
@@ -111,6 +108,18 @@ class SupplementalJobStatusResponse(BaseModel):
 
     class Config:
         orm_mode = True
+
+
+class VersionStatsResponse(BaseModel):
+    """Response model for version statistics"""
+    version: int
+    species: str
+    created_at: datetime
+    total_alleles: int
+    new_alleles: int
+    program_name: str
+    description: Optional[str] = None
+    uploaded_by: Optional[str] = None
 
 # # Create an asynchronous engine
 # engine = create_async_engine(DATABASE_URL, echo=True)

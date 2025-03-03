@@ -7,7 +7,7 @@
     <Dialog v-model:visible="showDuplicateModal" :modal="true" :closable="false" :style="{ width: '600px' }">
       <div class="modal-header">
         <span class="warning-icon">
-          <i class="pi pi-exclamation-circle" style="font-size: 2em; margin-right: 8px;"></i>Warning
+          <i class="pi pi-exclamation-triangle" style="font-size: 2em; margin-right: 8px;"></i>Warning
         </span>
         <span class="warning-text">Duplicate AlleleIDs Found</span>
       </div>
@@ -24,13 +24,12 @@
         <Button label="Download Duplicates CSV" icon="pi pi-download" @click="downloadDuplicates" />
       </div>
       <div>
-        <p class="warning-details" v-if="previewResponse">
-          By submitting this file you will add {{ previewResponse.duplicate_count  - previewResponse.total_count }} alleleIDs to the database
+        <p class="warning-message">
+          Upload cannot proceed with duplicate alleleIDs. Please remove the duplicates from your file and try again.
         </p>
       </div>
       <div class="dialog-footer">
-        <Button label="Cancel" icon="pi pi-times" class="p-button-danger" @click="cancelUpload" />
-        <Button label="Submit Upload" icon="pi pi-check" @click="commitMadcData" autoFocus />
+        <Button label="Close" icon="pi pi-times" class="p-button-primary" @click="cancelUpload" />
       </div>
     </Dialog>
 
@@ -54,72 +53,100 @@
       <TabPanel header="MADC Upload" class="custom-tabpanel">
         <Panel header="MADC Upload">
           <div class="upload-section">
-            <!-- Species Database Dropdown -->
-            <div class="dropdown-container">
-              <label for="pipelineSelectMadc" class="pipeline-label">Please select a Species Database</label>
-              <Dropdown 
-                id="pipelineSelectMadc"
-                v-model="selectedPipelineMadc" 
-                :options="pipelineOptions" 
-                optionLabel="label" 
-                optionValue="value" 
-                placeholder="Please select one"
-                class="w-full"
-              />
-            </div>
+            <div class="two-column-layout">
+              <!-- Left Column: Form Elements -->
+              <div class="form-column">
+                <!-- Species Database Dropdown -->
+                <div class="dropdown-container">
+                  <label for="pipelineSelectMadc" class="pipeline-label">Please select a Species Database</label>
+                  <Dropdown 
+                    id="pipelineSelectMadc"
+                    v-model="selectedPipelineMadc" 
+                    :options="pipelineOptions" 
+                    optionLabel="label" 
+                    optionValue="value" 
+                    placeholder="Please select one"
+                    class="w-full"
+                  />
+                  <div v-if="selectedPipelineMadc && programOptionsMadc.length <= 1" class="empty-options-message">
+                    <small>No existing programs found for this species. You can create a new one.</small>
+                  </div>
+                </div>
 
-            <!-- Program Dropdown -->
-            <div class="dropdown-container">
-              <label for="programSelectMadc" class="program-label">Please select or add Program/Owner</label>
-              <Dropdown
-                id="programSelectMadc"
-                v-model="selectedProgramMadc"
-                :options="programOptionsMadc"
-                optionLabel="name"
-                optionValue="value"
-                placeholder="Please select one"
-                class="w-full"
-                @change="handleProgramChangeMadc"
-              />
-              <!-- New Program Input -->
-              <div v-if="selectedProgramMadc === 'new'" class="new-program-input">
-                <InputText v-model="newProgramNameMadc" placeholder="Enter new program name" />
-                <Button 
-                  label="Create Program" 
-                  icon="pi pi-plus" 
-                  @click="submitNewProgramMadc"
-                  class="mt-2"
-                />
+                <!-- Program Dropdown -->
+                <div class="dropdown-container" v-if="selectedPipelineMadc">
+                  <label for="programSelectMadc" class="program-label">Please select or add Program/Owner</label>
+                  <Dropdown
+                    id="programSelectMadc"
+                    v-model="selectedProgramMadc"
+                    :options="programOptionsMadc"
+                    optionLabel="name"
+                    optionValue="value"
+                    placeholder="Please select one"
+                    class="w-full"
+                    @change="handleProgramChangeMadc"
+                    :disabled="programOptionsMadc.length <= 1"
+                  />
+                  <!-- New Program Input -->
+                  <div v-if="selectedProgramMadc === 'new'" class="new-program-input">
+                    <InputText v-model="newProgramNameMadc" placeholder="Enter new program name" />
+                    <Button 
+                      label="Create Program" 
+                      icon="pi pi-plus" 
+                      @click="submitNewProgramMadc"
+                      class="mt-2"
+                    />
+                  </div>
+                </div>
+
+                <!-- Source Dropdown with Conditional Rendering - MADC Upload Tab -->
+                <div class="dropdown-container" v-if="selectedProgramMadc">
+                  <label for="sourceSelectMadc" class="source-label">Please select or add Source</label>
+                  <Dropdown
+                    id="sourceSelectMadc"
+                    v-model="selectedSourceMadc"
+                    :options="sourceOptionsMadc"
+                    optionLabel="name"
+                    optionValue="value"
+                    placeholder="Please select one"
+                    class="w-full"
+                    @change="handleSourceChangeMadc"
+                    :disabled="sourceOptionsMadc.length <= 1"
+                  />
+                  <!-- New Source Input -->
+                  <div v-if="selectedSourceMadc === 'new'" class="new-source-input">
+                    <InputText v-model="newSourceNameMadc" placeholder="Enter new source name" />
+                    <Button 
+                      label="Create Source" 
+                      icon="pi pi-plus" 
+                      @click="submitNewSourceMadc"
+                      class="mt-2"
+                    />
+                  </div>
+                </div>
+                <div v-else-if="selectedPipelineMadc && !selectedProgramMadc">
+                  <p>Please select a program first</p>
+                </div>
+              </div>
+
+              <!-- Version Column Template (replace this in all three tabs) -->
+              <div class="version-column">
+                <div class="version-info-container" v-if="selectedPipelineMadc && databaseVersions[selectedPipelineMadc]">
+                  <div class="version-info-text">
+                    <i class="pi pi-database"></i>
+                    <span>Current {{ capitalizeFirst(selectedPipelineMadc) }} Database</span>
+                    <span class="version-number">v{{ databaseVersions[selectedPipelineMadc].version }}</span>
+                  </div>
+                </div>
+                <div class="version-info-container" v-else-if="selectedPipelineMadc">
+                  <div class="version-info-text loading">
+                    <i class="pi pi-spin pi-spinner"></i>
+                    <span>Loading database version...</span>
+                  </div>
+                </div>
               </div>
             </div>
-
-            <!-- Source Dropdown with Conditional Rendering -->
-            <div class="dropdown-container" v-if="sourceOptionsMadc.length > 0">
-              <label for="sourceSelectMadc" class="source-label">Please select or add Source</label>
-              <Dropdown
-                id="sourceSelectMadc"
-                v-model="selectedSourceMadc"
-                :options="sourceOptionsMadc"
-                optionLabel="name"
-                optionValue="value"
-                placeholder="Please select one"
-                class="w-full"
-                @change="handleSourceChangeMadc"
-              />
-              <!-- New Source Input -->
-              <div v-if="selectedSourceMadc === 'new'" class="new-source-input">
-                <InputText v-model="newSourceNameMadc" placeholder="Enter new source name" />
-                <Button 
-                  label="Create Source" 
-                  icon="pi pi-plus" 
-                  @click="submitNewSourceMadc"
-                  class="mt-2"
-                />
-              </div>
-            </div>
-            <div v-else>
-              <p>Loading sources...</p>
-            </div>
+          </div>
 
             <!-- File Upload Section -->
             <div class="file-upload-container">
@@ -143,7 +170,7 @@
                 {{ uploadMessageMadc }}
               </p>
             </div>
-          </div>
+        
 
           <!-- Job Status Table for MADC Uploads -->
           <div class="job-status-section">
@@ -176,40 +203,51 @@
       <TabPanel header="PAV Upload" class="custom-tabpanel">
         <Panel header="PAV Upload">
           <div class="upload-section">
-            <div class="dropdown-container">
-              <label for="pipelineSelectPav" class="pipeline-label">Please select a Species Database</label>
-              <Dropdown 
-                id="pipelineSelectPav"
-                v-model="selectedPipelinePav" 
-                :options="pipelineOptions" 
-                optionLabel="label" 
-                optionValue="value" 
-                placeholder="Please select one"
-                class="w-full"
-              />
-            </div>
-            <div class="dropdown-container">
-              <label for="programSelectPav" class="program-label">Please select or add Program/Owner</label>
-              <Dropdown
-                id="programSelectPav"
-                v-model="selectedProgramPav"
-                :options="programOptionsPav"
-                optionLabel="name"
-                optionValue="value"
-                placeholder="Please select one"
-                class="w-full"
-                @change="handleProgramChangePav"
-              />
-              <div v-if="selectedProgramPav === 'new'" class="new-program-input">
-                <InputText v-model="newProgramNamePav" placeholder="Enter new program name" />
-                <Button 
-                  label="Create Program" 
-                  icon="pi pi-plus" 
-                  @click="submitNewProgramPav"
-                  class="mt-2"
-                />
+            <div class="two-column-layout">
+              <!-- Left Column: Form Elements -->
+              <div class="form-column">
+                <div class="dropdown-container">
+                  <label for="pipelineSelectPav" class="pipeline-label">Please select a Species Database</label>
+                  <Dropdown 
+                    id="pipelineSelectPav"
+                    v-model="selectedPipelinePav" 
+                    :options="pipelineOptions" 
+                    optionLabel="label" 
+                    optionValue="value" 
+                    placeholder="Please select one"
+                    class="w-full"
+                  />
+                  <div v-if="selectedPipelinePav && programOptionsPav.length <= 1" class="empty-options-message">
+                    <small>No existing programs found for this species. You can create a new one.</small>
+                  </div>
+                </div>
+                <div class="dropdown-container" v-if="selectedPipelinePav">
+                  <label for="programSelectPav" class="program-label">Please select or add Program/Owner</label>
+                  <Dropdown
+                    id="programSelectPav"
+                    v-model="selectedProgramPav"
+                    :options="programOptionsPav"
+                    optionLabel="name"
+                    optionValue="value"
+                    placeholder="Please select one"
+                    class="w-full"
+                    @change="handleProgramChangePav"
+                    :disabled="programOptionsPav.length <= 1"
+                  />
+                  <div v-if="selectedProgramPav === 'new'" class="new-program-input">
+                    <InputText v-model="newProgramNamePav" placeholder="Enter new program name" />
+                    <Button 
+                      label="Create Program" 
+                      icon="pi pi-plus" 
+                      @click="submitNewProgramPav"
+                      class="mt-2"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
+
+            <!-- File Upload Section -->
             <div class="file-upload-container">
               <FileUpload
                 mode="basic"
@@ -261,18 +299,25 @@
       <TabPanel header="Supplemental Upload" class="custom-tabpanel">
         <Panel header="Supplemental Upload">
           <div class="upload-section">
-            <div class="dropdown-container">
-              <label for="pipelineSelectSupplemental" class="pipeline-label">Please select a Species Database</label>
-              <Dropdown 
-                id="pipelineSelectSupplemental"
-                v-model="selectedPipelineSupplemental" 
-                :options="pipelineOptions" 
-                optionLabel="label" 
-                optionValue="value" 
-                placeholder="Please select one"
-                class="w-full"
-              />
+            <div class="two-column-layout">
+              <!-- Left Column: Form Elements -->
+              <div class="form-column">
+                <div class="dropdown-container">
+                  <label for="pipelineSelectSupplemental" class="pipeline-label">Please select a Species Database</label>
+                  <Dropdown 
+                    id="pipelineSelectSupplemental"
+                    v-model="selectedPipelineSupplemental" 
+                    :options="pipelineOptions" 
+                    optionLabel="label" 
+                    optionValue="value" 
+                    placeholder="Please select one"
+                    class="w-full"
+                  />
+                </div>
+              </div>
             </div>
+
+            <!-- File Upload Section -->
             <div class="file-upload-container">
               <FileUpload
                 mode="basic"
@@ -324,7 +369,7 @@
 </template>
 
 <script>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import axiosInstance from '../axiosConfig';
 import { mapGetters, mapActions } from 'vuex';
 import Dropdown from 'primevue/dropdown';
@@ -386,7 +431,7 @@ export default {
     const newProgramNameMadc = ref("");
     const uploadMessageMadc = ref(null);
     const jobsMadc = ref([]);
-    const selectedSourceMadc = ref("new");
+    const selectedSourceMadc = ref("");
     const newSourceNameMadc = ref("");
 
     // PAV Upload state
@@ -409,6 +454,111 @@ export default {
     const duplicateList = ref([]);
     const previewResponse = ref(null);
     const loadingPreview = ref(false);
+
+    // Fetch Programs by Species
+    const fetchProgramsBySpecies = async (species, target) => {
+      if (!species) return;
+      
+      try {
+        uploadMessageMadc.value = "Loading programs...";
+        const response = await axiosInstance.get(`/posts/programs/by_species/${species}`);
+        const fetchedPrograms = response.data.programs || [];
+        const mappedPrograms = fetchedPrograms.map((proj) => ({
+          name: proj.name,
+          value: proj.name
+        }));
+        
+        // Update the relevant program options list
+        if (target === 'madc') {
+          programOptionsMadc.value = [...mappedPrograms, { name: "Add new program", value: "new" }];
+          
+          // If no programs exist for this species, automatically select "Add new program"
+          if (mappedPrograms.length === 0) {
+            selectedProgramMadc.value = 'new';
+          } else {
+            // Reset program selection when species changes
+            selectedProgramMadc.value = '';
+          }
+          
+          // Reset source selection when species changes
+          selectedSourceMadc.value = '';
+          sourceOptionsMadc.value = [{ name: "Add new source", value: "new" }];
+        } else if (target === 'pav') {
+          programOptionsPav.value = [...mappedPrograms, { name: "Add new program", value: "new" }];
+          
+          // If no programs exist for this species, automatically select "Add new program"
+          if (mappedPrograms.length === 0) {
+            selectedProgramPav.value = 'new';
+          } else {
+            // Reset program selection when species changes
+            selectedProgramPav.value = '';
+          }
+        }
+        
+        uploadMessageMadc.value = null;
+      } catch (error) {
+        console.error(`Error fetching programs for ${species}:`, error);
+        uploadMessageMadc.value = `Error loading programs for ${species}`;
+      }
+    };
+
+    // Fetch Sources by Program
+    const fetchSourcesByProgram = async (programName) => {
+      if (!programName || programName === 'new') {
+        // If no program selected or "new" is selected, just show the "Add new source" option
+        sourceOptionsMadc.value = [{ name: "Add new source", value: "new" }];
+        selectedSourceMadc.value = 'new'; // Automatically select "Add new source"
+        return;
+      }
+      
+      try {
+        uploadMessageMadc.value = "Loading sources...";
+        
+        // First we need to get the program ID from the name
+        const programResponse = await axiosInstance.get('/posts/programs/list');
+        const programs = programResponse.data.programs || [];
+        const program = programs.find(p => p.name === programName);
+        
+        if (!program) {
+          console.error(`Program not found: ${programName}`);
+          uploadMessageMadc.value = null;
+          // If program not found, just show "Add new source" and select it
+          sourceOptionsMadc.value = [{ name: "Add new source", value: "new" }];
+          selectedSourceMadc.value = 'new';
+          return;
+        }
+        
+        // Now fetch sources for this program
+        const response = await axiosInstance.get(`/posts/sources/by_program/${program.id}`);
+        const fetchedSources = response.data || [];
+        
+        // Map the sources to the correct format
+        const mappedSources = fetchedSources.map(source => ({
+          name: source.name,
+          value: source.name
+        }));
+        
+        // Add the "new source" option
+        sourceOptionsMadc.value = [...mappedSources, { name: "Add new source", value: "new" }];
+        
+        // If no sources exist for this program, automatically select "Add new source"
+        if (mappedSources.length === 0) {
+          selectedSourceMadc.value = 'new';
+        } else {
+          // Reset source selection
+          selectedSourceMadc.value = '';
+        }
+        
+        uploadMessageMadc.value = null;
+      } catch (error) {
+        console.error(`Error fetching sources for program ${programName}:`, error);
+        uploadMessageMadc.value = `Error loading sources for program ${programName}`;
+        
+        // In case of error, just show "Add new source" and select it
+        sourceOptionsMadc.value = [{ name: "Add new source", value: "new" }];
+        selectedSourceMadc.value = 'new';
+      }
+    };
 
     // Fetch Programs and Sources
     const fetchPrograms = async () => {
@@ -523,14 +673,21 @@ export default {
     // Handle Program/Source change events
     const handleProgramChangeMadc = () => {
       if (selectedProgramMadc.value === 'new') {
+        // If "new program" selected, reset sources
+        sourceOptionsMadc.value = [{ name: "Add new source", value: "new" }];
+        selectedSourceMadc.value = 'new';
+      } else if (selectedProgramMadc.value) {
+        // If a program is selected, fetch relevant sources
+        fetchSourcesByProgram(selectedProgramMadc.value);
+      }
+    };
+    
+    const handleProgramChangePav = () => {
+      if (selectedProgramPav.value === 'new') {
         // Additional actions if needed
       }
     };
-    const handleProgramChangepav = () => {
-      if (selectedProgramMadc.value === 'new') {
-        // Additional actions if needed
-      }
-    };
+    
     const handleSourceChangeMadc = () => {
       if (selectedSourceMadc.value === 'new') {
         // Additional actions if needed
@@ -555,6 +712,7 @@ export default {
         uploadMessageMadc.value = result.error;
       }
     };
+    
     // Improved submitNewProgramPav
     const submitNewProgramPav = async () => {
       if (!newProgramNamePav.value.trim()) {
@@ -867,6 +1025,79 @@ export default {
       }
     };
 
+    const capitalizeFirst = (str) => {
+      if (!str) return '';
+      return str.charAt(0).toUpperCase() + str.slice(1);
+    };
+
+    // Format date for better readability
+    const formatDate = (isoDateString) => {
+      try {
+        const date = new Date(isoDateString);
+        return new Intl.DateTimeFormat('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        }).format(date);
+      } catch (e) {
+        return isoDateString; // fallback to original string if parsing fails
+      }
+    };
+
+    // State for database versions
+    const databaseVersions = ref({});
+
+    // Function to fetch database version for a species
+    const fetchDatabaseVersion = async (species) => {
+      if (!species) return;
+      
+      try {
+        const response = await axiosInstance.get(`/posts/database_version/${species}`);
+        if (response.data) {
+          databaseVersions.value = {
+            ...databaseVersions.value,
+            [species]: response.data
+          };
+        }
+      } catch (error) {
+        console.error(`Error fetching ${species} database version:`, error);
+      }
+    };
+
+    // Set up watchers for all three tabs to fetch versions when species is selected
+    watch(selectedPipelineMadc, (newValue) => {
+      if (newValue) {
+        fetchProgramsBySpecies(newValue, 'madc');
+        fetchDatabaseVersion(newValue);
+      }
+    });
+
+    watch(selectedPipelinePav, (newValue) => {
+      if (newValue) {
+        fetchProgramsBySpecies(newValue, 'pav');
+        fetchDatabaseVersion(newValue);
+      }
+    });
+
+    watch(selectedPipelineSupplemental, (newValue) => {
+      if (newValue) {
+        fetchDatabaseVersion(newValue);
+      }
+    });
+
+    // Watch for program selection to update sources
+    watch(selectedProgramMadc, (newValue) => {
+      if (newValue && newValue !== 'new') {
+        fetchSourcesByProgram(newValue);
+      } else if (newValue === 'new') {
+        // When "Add new program" is selected, reset source options to just "Add new source"
+        sourceOptionsMadc.value = [{ name: "Add new source", value: "new" }];
+        selectedSourceMadc.value = 'new';
+      }
+    });
+
     // Improved initialization section
     onMounted(async () => {
       // Set loading states
@@ -930,7 +1161,7 @@ export default {
       submitNewProgramMadc,
       submitNewProgramPav,
       handleProgramChangeMadc,
-      handleProgramChangepav,
+      handleProgramChangePav,
       submitNewSourceMadc,
       handleSourceChangeMadc,
       selectedFilesPav,
@@ -956,7 +1187,12 @@ export default {
       loadingPreview,
       confirmSubmitPavData,
       confirmSubmitSupplementalData,
-      previewResponse
+      previewResponse,
+      databaseVersions,
+      capitalizeFirst,
+      formatDate,
+      fetchProgramsBySpecies,
+      fetchSourcesByProgram,
     };
   },
 };
@@ -1048,5 +1284,121 @@ export default {
   font-size: 1.2em; /* Adjust as needed */
   font-weight: bold;
   margin-top: 10px;
+}
+
+/* Control the width of dropdown containers */
+.dropdown-container {
+  width: 350px; /* Adjust to your preferred width */
+  max-width: 100%;
+}
+
+/* Make dropdown components match the width of their container */
+:deep(.p-dropdown) {
+  width: 100% !important; /* Override PrimeVue's w-full class */
+}
+
+/* Make dropdown panel match the width of the dropdown */
+:deep(.p-dropdown-panel) {
+  width: 350px; /* Keep this value the same as dropdown-container width */
+  max-width: 100%;
+}
+
+/* Optional: If you want to control the file upload width too */
+.file-upload-container :deep(.p-fileupload) {
+  width: 350px;
+  max-width: 100%;
+}
+
+/* Enhanced version info container */
+.version-info-container {
+  background-color: #f8f9fa;
+  padding: 15px;
+  border-radius: 8px;
+  border-left: 4px solid #4caf50;
+  margin-top: 10px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  min-width: 300px;
+}
+
+/* Make the database version text much larger and more prominent */
+.version-info-text {
+  font-size: 1.2rem;
+  color: #333;
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  text-align: center;
+}
+
+.version-info-text i {
+  font-size: 1.5rem;
+  color: #4caf50;
+  margin-bottom: 8px;
+}
+
+/* Make the version number even larger and highlighted */
+.version-number {
+  font-size: 2rem;
+  font-weight: bold;
+  color: #2196F3;
+  display: block;
+  margin-top: 8px;
+}
+
+/* Loading state styling */
+.version-info-text.loading {
+  color: #757575;
+}
+
+/* Layout improvements for the two-column layout */
+.two-column-layout {
+  display: flex;
+  flex-direction: row;
+  gap: 30px;
+  margin-bottom: 20px;
+}
+
+.form-column {
+  flex: 1;
+  min-width: 350px;
+}
+
+.version-column {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+
+/* Improve dropdown header appearance */
+.pipeline-label, .program-label, .source-label {
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: #333;
+}
+
+/* Add loading animation for dropdowns */
+.dropdown-loading {
+  position: relative;
+}
+
+.dropdown-loading::after {
+  content: "";
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  margin-top: -8px;
+  border: 2px solid rgba(0, 0, 0, 0.1);
+  border-top-color: #2196F3;
+  border-radius: 50%;
+  animation: dropdown-spin 0.8s linear infinite;
+}
+
+@keyframes dropdown-spin {
+  to { transform: rotate(360deg); }
 }
 </style>

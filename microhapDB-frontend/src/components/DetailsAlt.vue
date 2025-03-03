@@ -26,6 +26,9 @@
               <h3 class="font-mono text-xs">
                 {{ allele.alleleid || allele.id }}
               </h3>
+              <span class="accession-count text-xs">
+                {{ getAlleleAccessionCount(allele) }}
+              </span>
             </div>
           </button>
         </div>
@@ -301,19 +304,24 @@
         }
         try {
           const alleleIds = this.getSelectedSequences.map(seq => seq.alleleid);
+          console.log("Fetching details for allele IDs:", alleleIds);
+          
           const { data } = await axiosInstance.post("posts/alleleAccessions/", {
             alleleid: alleleIds,
           });
           
-          // data is now an array of objects with keys: alleleid, accession, programs, sources.
-          // Flatten into datatable rows with comma-separated strings.
+          console.log("API response:", data);
+          
+          // Transform data
           this.detailedInfo = data.map(item => ({
             uniqueKey: `${item.alleleid}-${item.accession}`,
             alleleid: item.alleleid,
             accession: item.accession,
-            source: item.sources.length ? item.sources.join(", ") : "",
-            owner: item.programs.length ? item.programs.join(", ") : ""
+            source: item.sources && item.sources.length ? item.sources.join(", ") : "",
+            owner: item.programs && item.programs.length ? item.programs.join(", ") : ""
           }));
+          
+          console.log("Transformed detailedInfo:", this.detailedInfo);
         } catch (error) {
           console.error("Error fetching detailed information:", error);
           this.detailedInfo = [];
@@ -394,6 +402,11 @@
       refreshSharedTable() {
         this.fetchDetailedInfo();
       },
+      getAlleleAccessionCount(allele) {
+        const alleleId = allele.alleleid || allele.id;
+        const count = this.detailedInfo.filter(item => item.alleleid === alleleId).length;
+        return count !== undefined ? `${count} accession${count !== 1 ? 's' : ''}` : 'Loading...';
+      },
     },
     mounted() {
       this.fetchDetailedInfo();
@@ -422,6 +435,13 @@
     text-align: left;
     border-radius: 0.5rem;
     position: relative;
+  }
+  .accession-count {
+    font-size: 0.7rem;
+    color: #666;
+    display: block;
+    margin-top: 0.15rem;
+    font-weight: normal;
   }
   .remove-btn {
     position: absolute;

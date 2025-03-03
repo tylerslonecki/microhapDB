@@ -6,14 +6,14 @@ import asyncio
 from fastapi import APIRouter, File, UploadFile, HTTPException, Depends, Response, Request, BackgroundTasks, Form
 from starlette.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session, selectinload, Query
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
-from .models import Sequence, Accession, AllelePresence, get_session, UploadBatch, SequenceLog, Program, \
+from .models import Sequence, Accession, AllelePresence, get_session, DatabaseVersion, Program, \
     SequencePresence, program_source_association, \
     JobStatusResponse, \
     QueryRequest, PaginatedSequenceResponse, SequenceResponse, PaginatedSequenceRequest, \
     ColumnFilter, AccessionResponse, AccessionRequest, Source, SourceResponse, SourceCreate, \
-    SupplementalJobStatusResponse, AccessionDetailResponse
+    SupplementalJobStatusResponse, AccessionDetailResponse, VersionStatsResponse, ProgramResponse
 from src.database import AsyncSessionLocal
 from .service import get_all_batch_summaries, get_new_sequences_for_batch, get_total_unique_sequences, \
     generate_upset_plot, generate_line_chart, generate_line_chart_data
@@ -21,7 +21,7 @@ import pandas as pd
 import io
 import os
 from datetime import datetime, timedelta
-from sqlalchemy import func, text, or_, insert, and_
+from sqlalchemy import func, text, or_, insert, and_, distinct
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.auth.orcid_oauth import get_current_user
@@ -79,6 +79,7 @@ async def get_next_version_number(db: AsyncSession, species: str) -> int:
 
 import uuid
 
+
 async def process_upload(file_data: bytes, job_id: str, species: str, program_id: int, source_name: str):
     async with AsyncSessionLocal() as db:
         try:
@@ -119,25 +120,36 @@ async def process_upload(file_data: bytes, job_id: str, species: str, program_id
 
             # Pre-fetch existing sequences for the given species using unique alleleIDs (assumed to be in the first column)
             unique_alleleids = df.iloc[:, 0].unique().tolist()
-            stmt = select(Sequence.alleleid, Sequence.hapid).where(
+            stmt = select(Sequence.alleleid).where(
                 Sequence.species == species,
                 Sequence.alleleid.in_(unique_alleleids)
             )
             result = await db.execute(stmt)
-            existing_sequences = {row.alleleid: row.hapid for row in result}
+            existing_sequences = {row.alleleid for row in result}
             logging.info(f"Found {len(existing_sequences)} existing sequences")
 
-            # Create a new upload batch (flush to get batch.id)
-            version = await get_next_version_number(db, species)
-            batch = UploadBatch(program_id=program_id, species=species, version=version)
-            db.add(batch)
+            # Create a new database version
+            # Get the next version number for this species
+            stmt = select(func.max(DatabaseVersion.version)).where(DatabaseVersion.species == species)
+            result = await db.execute(stmt)
+            current_version = result.scalar_one_or_none() or 0
+            new_version = current_version + 1
+
+            # Create the new database version record
+            db_version = DatabaseVersion(
+                version=new_version,
+                program_id=program_id,
+                species=species,
+                description=f"Upload of {len(df)} sequences from {source_name}",
+                changes_summary=f"Added {len(unique_alleleids) - len(existing_sequences)} new sequences"
+            )
+            db.add(db_version)
             await db.flush()
 
             # Prepare lists for bulk insertion
             new_sequences_data = []  # For new Sequence rows
-            new_logs_data = []       # For SequenceLog rows
-            hapids_processed = []    # For presence check
-            new_sequences_dict = {}  # Map alleleid -> hapid for new sequences in this job
+            alleleids_processed = []  # For presence check
+            new_sequences = set()  # Track new sequences in this job
 
             # Process each row using itertuples for fast iteration
             for i, row in enumerate(df.itertuples(index=False)):
@@ -149,62 +161,50 @@ async def process_upload(file_data: bytes, job_id: str, species: str, program_id
 
                 # Check if the sequence already exists
                 if alleleid in existing_sequences:
-                    hapid = existing_sequences[alleleid]
-                    was_new = False
-                elif alleleid in new_sequences_dict:
-                    hapid = new_sequences_dict[alleleid]
-                    was_new = True
+                    # Sequence already exists, no action needed for the sequence table
+                    pass
+                elif alleleid in new_sequences:
+                    # We've already processed this new sequence in this batch
+                    pass
                 else:
-                    hapid = str(uuid.uuid4())
-                    new_sequences_dict[alleleid] = hapid
+                    new_sequences.add(alleleid)
                     new_sequences_data.append({
-                        "hapid": hapid,
                         "alleleid": alleleid,
                         "allelesequence": allelesequence,
                         "species": species,
                         "info": None,
                         "associated_trait": None,
+                        "version_added": new_version
                     })
-                    was_new = True
 
-                new_logs_data.append({
-                    "hapid": hapid,
-                    "batch_id": batch.id,
-                    "was_new": was_new,
-                    "species": species,
-                    "alleleid": alleleid,
-                    "allelesequence": allelesequence
-                })
-                hapids_processed.append(hapid)
+                alleleids_processed.append(alleleid)
 
             # Bulk insert new Sequence rows (if any)
             if new_sequences_data:
                 await db.execute(insert(Sequence), new_sequences_data)
 
-            # Bulk insert SequenceLog rows
-            if new_logs_data:
-                await db.execute(insert(SequenceLog), new_logs_data)
-
-            # Pre-fetch existing SequencePresence for all processed hapids
-            hapid_set = set(hapids_processed)
-            stmt_presence = select(SequencePresence.hapid).where(
+            # Pre-fetch existing SequencePresence for all processed alleleids
+            alleleid_set = set(alleleids_processed)
+            stmt_presence = select(SequencePresence.alleleid).where(
                 SequencePresence.program_id == program_id,
                 SequencePresence.species == species,
-                SequencePresence.hapid.in_(hapid_set)
+                SequencePresence.alleleid.in_(alleleid_set)
             )
             result_presence = await db.execute(stmt_presence)
-            existing_presence_hapids = {row.hapid for row in result_presence}
+            existing_presence_alleleids = {row.alleleid for row in result_presence}
 
-            # Prepare new SequencePresence rows for hapids that do not have an entry yet
+            # Prepare new SequencePresence rows for alleleids that do not have an entry yet
             new_presence_data = []
-            for hapid in hapid_set:
-                if hapid not in existing_presence_hapids:
+            for alleleid in alleleid_set:
+                if alleleid not in existing_presence_alleleids:
                     new_presence_data.append({
                         "program_id": program_id,
-                        "hapid": hapid,
+                        "alleleid": alleleid,
                         "species": species,
-                        "presence": True
+                        "presence": True,
+                        "version_added": new_version
                     })
+
             if new_presence_data:
                 await db.execute(insert(SequencePresence), new_presence_data)
 
@@ -218,6 +218,11 @@ async def process_upload(file_data: bytes, job_id: str, species: str, program_id
             jobs[job_id]['file'] = output_stream.getvalue()
             jobs[job_id]['status'] = 'Completed'
             jobs[job_id]['completion_time'] = datetime.utcnow()
+
+            # Add summary information to job
+            jobs[job_id]['version'] = new_version
+            jobs[job_id]['new_sequences'] = len(new_sequences)
+            jobs[job_id]['total_sequences'] = len(alleleids_processed)
 
         except Exception as e:
             await db.rollback()
@@ -622,12 +627,11 @@ async def get_sequences(
         global_search = f"%{request.globalFilter}%"
         query = query.where(
             or_(
-                Sequence.hapid.ilike(global_search),
                 Sequence.alleleid.ilike(global_search),
                 Sequence.allelesequence.ilike(global_search),
                 Sequence.species.ilike(global_search),
-                Sequence.info.ilike(global_search),  # Include new field
-                Sequence.associated_trait.ilike(global_search)  # Include new field
+                Sequence.info.ilike(global_search),
+                Sequence.associated_trait.ilike(global_search)
             )
         )
 
@@ -635,21 +639,14 @@ async def get_sequences(
     if request.filters:
         for field, filter_obj in request.filters.items():
             if filter_obj.value:
-                if field == 'hapid':
-                    try:
-                        uuid.UUID(filter_obj.value)
-                        query = query.where(Sequence.hapid == filter_obj.value)
-                    except ValueError:
-                        raise HTTPException(status_code=400, detail="Invalid UUID format for hapid")
-                elif field == 'alleleid':
+                if field == 'alleleid':
                     query = query.where(Sequence.alleleid.ilike(f"%{filter_obj.value}%"))
                 elif field == 'allelesequence':
                     query = query.where(Sequence.allelesequence.ilike(f"%{filter_obj.value}%"))
-                elif field == 'info':  # New filter
+                elif field == 'info':
                     query = query.where(Sequence.info.ilike(f"%{filter_obj.value}%"))
-                elif field == 'associated_trait':  # New filter
+                elif field == 'associated_trait':
                     query = query.where(Sequence.associated_trait.ilike(f"%{filter_obj.value}%"))
-                # Add more fields here as needed
 
     # Calculate total records
     total_result = await db.execute(select(func.count()).select_from(query.subquery()))
@@ -666,12 +663,11 @@ async def get_sequences(
         total=total,
         items=[
             SequenceResponse(
-                hapid=str(seq.hapid),
                 alleleid=seq.alleleid,
-                allelesequence=seq.allelesequence,
                 species=seq.species,
-                info=seq.info,  # Include new field
-                associated_trait=seq.associated_trait  # Include new field
+                allelesequence=seq.allelesequence,
+                info=seq.info,
+                associated_trait=seq.associated_trait
             ) for seq in sequences
         ]
     )
@@ -705,7 +701,7 @@ async def get_accessions_by_allele(
         ))
         # Join to SequencePresence to get program info
         .join(SequencePresence, and_(
-            Sequence.hapid == SequencePresence.hapid,
+            Sequence.alleleid == SequencePresence.alleleid,
             Sequence.species == SequencePresence.species
         ))
         .join(Program, SequencePresence.program_id == Program.id)
@@ -776,7 +772,6 @@ async def get_alleleDetails(
         global_search = f"%{request.globalFilter}%"
         query = query.where(
             or_(
-                Sequence.hapid.ilike(global_search),
                 Sequence.alleleid.ilike(global_search),
                 Sequence.allelesequence.ilike(global_search),
                 Sequence.species.ilike(global_search),
@@ -789,13 +784,7 @@ async def get_alleleDetails(
     if request.filters:
         for field, filter_obj in request.filters.items():
             if filter_obj.value:
-                if field == 'hapid':
-                    try:
-                        uuid.UUID(filter_obj.value)
-                        query = query.where(Sequence.hapid == filter_obj.value)
-                    except ValueError:
-                        raise HTTPException(status_code=400, detail="Invalid UUID format for hapid")
-                elif field == 'alleleid':
+                if field == 'alleleid':
                     query = query.where(Sequence.alleleid.ilike(f"%{filter_obj.value}%"))
                 elif field == 'allelesequence':
                     query = query.where(Sequence.allelesequence.ilike(f"%{filter_obj.value}%"))
@@ -820,7 +809,6 @@ async def get_alleleDetails(
         total=total,
         items=[
             SequenceResponse(
-                hapid=str(seq.hapid),
                 alleleid=seq.alleleid,
                 allelesequence=seq.allelesequence,
                 species=seq.species,
@@ -837,9 +825,7 @@ async def get_sequences_for_alignment(filter: str = "", filter_field: str = "", 
     query = select(Sequence).where(Sequence.species == species)
 
     if filter and filter_field:
-        if filter_field == "hapid":
-            query = query.where(Sequence.hapid.ilike(f"%{filter}%"))
-        elif filter_field == "alleleid":
+        if filter_field == "alleleid":
             query = query.where(Sequence.alleleid.ilike(f"%{filter}%"))
         elif filter_field == "allelesequence":
             query = query.where(Sequence.allelesequence.ilike(f"%{filter}%"))
@@ -862,6 +848,28 @@ class ProgramCreateRequest(BaseModel):
     name: str
     description: Optional[str] = None
 
+
+@router.get("/programs/by_species/{species}")
+async def get_programs_by_species(species: str, db: AsyncSession = Depends(get_session)):
+    """
+    Get programs that have database versions for the specified species.
+    """
+    try:
+        # Find programs that have database versions for this species
+        stmt = (
+            select(Program)
+            .join(DatabaseVersion, Program.id == DatabaseVersion.program_id)
+            .where(DatabaseVersion.species == species)
+            .distinct()
+            .order_by(Program.name)
+        )
+
+        result = await db.execute(stmt)
+        programs = result.scalars().all()
+
+        return {"programs": [{"id": program.id, "name": program.name} for program in programs]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving programs: {str(e)}")
 
 @router.post("/programs/create")
 async def create_program(request: ProgramCreateRequest, db: AsyncSession = Depends(get_session)):
@@ -892,6 +900,27 @@ async def list_sources(db: AsyncSession = Depends(get_session)):
     source_list = sources.scalars().all()
     return source_list
 
+
+@router.get("/sources/by_program/{program_id}")
+async def get_sources_by_program(program_id: int, db: AsyncSession = Depends(get_session)):
+    """
+    Get sources associated with a specific program.
+    """
+    try:
+        # Use the association table to find sources linked to this program
+        stmt = (
+            select(Source)
+            .join(program_source_association, Source.id == program_source_association.c.source_id)
+            .where(program_source_association.c.program_id == program_id)
+            .order_by(Source.name)
+        )
+
+        result = await db.execute(stmt)
+        sources = result.scalars().all()
+
+        return [{"id": source.id, "name": source.name, "value": source.name} for source in sources]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving sources: {str(e)}")
 
 @router.post("/sources/create", response_model=SourceResponse)
 async def create_source(source: SourceCreate, db: AsyncSession = Depends(get_session)):
@@ -1041,45 +1070,248 @@ async def list_supplemental_jobs():
 
 @router.get("/visualizations/histogram")
 async def get_histogram_data(
-    species: str,
-    chromosome: str,
-    db: AsyncSession = Depends(get_session)
+        species: str,
+        chromosome: str,
+        program_id: Optional[int] = None,
+        db: AsyncSession = Depends(get_session)
 ):
     """
-    Returns counts of alleles grouped by locus for a given species and chromosome.
+    Returns counts of alleles grouped by locus for a given species, chromosome, and optionally program_id.
     The alleleID format is assumed to be 'chromosome.locus|uniqueID'.
     """
-    print(f"Received request with species: {species}, chromosome: {chromosome}")
+    print(f"Received request with species: {species}, chromosome: {chromosome}, program_id: {program_id}")
     try:
-        # Use PostgreSQL's split_part function with named parameters
-        query = text("""
+        # Base query parameters
+        query_params = {'species': species, 'chromosome': chromosome}
+
+        # Construct the base query
+        base_query = """
             SELECT 
-                split_part(alleleid, '.', 1) AS chromosome,
-                split_part(split_part(alleleid, '.', 2), '|', 1) AS locus,
+                split_part(s.alleleid, '.', 1) AS chromosome,
+                split_part(split_part(s.alleleid, '.', 2), '|', 1) AS locus,
                 COUNT(*) AS allele_count
-            FROM sequence_table
-            WHERE species = :species
-              AND split_part(alleleid, '.', 1) = :chromosome
+            FROM sequence_table s
+        """
+
+        # If program_id is provided, join with sequence_presence to filter by program
+        if program_id is not None:
+            base_query += """
+            JOIN sequence_presence sp ON 
+                s.alleleid = sp.alleleid AND 
+                s.species = sp.species
+            WHERE s.species = :species
+              AND split_part(s.alleleid, '.', 1) = :chromosome
+              AND sp.program_id = :program_id
+            """
+            query_params['program_id'] = program_id
+        else:
+            # Simple query without program filtering
+            base_query += """
+            WHERE s.species = :species
+              AND split_part(s.alleleid, '.', 1) = :chromosome
+            """
+
+        # Complete the query with group by and order by clauses
+        complete_query = base_query + """
             GROUP BY 
-                split_part(alleleid, '.', 1),
-                split_part(split_part(alleleid, '.', 2), '|', 1)
+                split_part(s.alleleid, '.', 1),
+                split_part(split_part(s.alleleid, '.', 2), '|', 1)
             ORDER BY locus;
-        """)
+        """
+
+        # Execute the query with parameters
+        query = text(complete_query)
         print("Executing query:")
         print(query)
-        result = await db.execute(query, {'species': species, 'chromosome': chromosome})
+        print("With parameters:", query_params)
+
+        result = await db.execute(query, query_params)
         rows = result.fetchall()
-        print("Query result rows:")
-        print(rows)
+        print(f"Query returned {len(rows)} rows")
 
         # Format the data for the frontend
         data = [
             {"chromosome": row.chromosome, "locus": row.locus, "allele_count": row.allele_count}
             for row in rows
         ]
-        print("Formatted data to be returned:")
-        print(data)
+
         return {"data": data}
     except Exception as e:
         print("Error retrieving histogram data:", e)
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Error details: {error_details}")
         raise HTTPException(status_code=500, detail=f"Error retrieving histogram data: {e}")
+
+
+@router.get("/visualizations/chromosomes")
+async def get_chromosomes_for_species(
+        species: str,
+        db: AsyncSession = Depends(get_session)
+):
+    """
+    Returns available chromosomes for a given species by parsing AlleleIDs.
+    The alleleID format is assumed to be 'chromosome.locus|uniqueID'.
+    """
+    try:
+        # Use PostgreSQL's split_part function to extract the chromosome part from alleleID
+        query = text("""
+            SELECT DISTINCT split_part(alleleid, '.', 1) AS chromosome
+            FROM sequence_table
+            WHERE species = :species
+            ORDER BY chromosome;
+        """)
+
+        result = await db.execute(query, {'species': species})
+        rows = result.fetchall()
+
+        # Extract chromosome values from the result
+        chromosomes = [row.chromosome for row in rows]
+
+        return {"chromosomes": chromosomes}
+    except Exception as e:
+        logging.error(f"Error retrieving chromosomes for species {species}: {e}")
+        raise HTTPException(status_code=500, detail=f"Error retrieving chromosomes: {e}")
+
+
+@router.get("/allele-count/{species}", response_model=List[VersionStatsResponse])
+async def get_allele_counts_by_version(
+    species: str,
+    program_id: Optional[int] = None,
+    session: AsyncSession = Depends(get_session)
+):
+    """
+    Get the count of unique alleleIDs for each database version of the specified species.
+    Optionally filter by program ID.
+    """
+    try:
+        # Query to get the total allele count for each version
+        query = (
+            select(
+                DatabaseVersion.version,
+                DatabaseVersion.species,
+                DatabaseVersion.created_at,
+                DatabaseVersion.description,
+                func.count(distinct(Sequence.alleleid)).label("total_alleles"),
+                Program.name.label("program_name")
+            )
+            .join(Sequence, Sequence.version_added <= DatabaseVersion.version)
+            .join(Program, DatabaseVersion.program_id == Program.id)
+            .where(
+                DatabaseVersion.species == species,
+                Sequence.species == species
+            )
+            .group_by(
+                DatabaseVersion.version,
+                DatabaseVersion.species,
+                DatabaseVersion.created_at,
+                DatabaseVersion.description,
+                Program.name
+            )
+            .order_by(DatabaseVersion.version)
+        )
+
+        if program_id is not None:
+            query = query.where(DatabaseVersion.program_id == program_id)
+
+        result = await session.execute(query)
+        versions_with_total = result.all()
+
+        # Now get new allele counts for each version
+        new_alleles_query = (
+            select(
+                DatabaseVersion.version,
+                func.count(distinct(Sequence.alleleid)).label("new_alleles")
+            )
+            .join(Sequence, Sequence.version_added == DatabaseVersion.version)
+            .where(
+                DatabaseVersion.species == species,
+                Sequence.species == species
+            )
+            .group_by(DatabaseVersion.version)
+        )
+
+        if program_id is not None:
+            new_alleles_query = new_alleles_query.where(DatabaseVersion.program_id == program_id)
+
+        new_alleles_result = await session.execute(new_alleles_query)
+        new_alleles_by_version = {row.version: row.new_alleles for row in new_alleles_result}
+
+        # Combine the results
+        response_data = []
+        for row in versions_with_total:
+            response_data.append(
+                VersionStatsResponse(
+                    version=row.version,
+                    species=row.species,
+                    created_at=row.created_at,
+                    total_alleles=row.total_alleles,
+                    new_alleles=new_alleles_by_version.get(row.version, 0),
+                    program_name=row.program_name,
+                    description=row.description
+                )
+            )
+
+        return response_data
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving version statistics: {str(e)}")
+
+
+@router.get("/programs/", response_model=List[ProgramResponse])
+async def get_programs(session: AsyncSession = Depends(get_session)):
+    """
+    Get a list of all programs for the dropdown selector.
+    """
+    try:
+        query = select(Program).order_by(Program.name)
+        result = await session.execute(query)
+        programs = result.scalars().all()
+
+        if not programs:
+            return []
+
+        return programs
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving programs: {str(e)}")
+
+
+@router.get("/database_version/{species}", response_model=dict)
+async def get_latest_database_version(species: str, db: AsyncSession = Depends(get_session)):
+    """
+    Get the latest database version for a given species.
+    """
+    try:
+        # Use a simpler query approach with subquery to find the max version
+        subquery = select(func.max(DatabaseVersion.version)).where(
+            DatabaseVersion.species == species.lower()).scalar_subquery()
+
+        # Then fetch the complete row for that version
+        query = select(DatabaseVersion).where(
+            (DatabaseVersion.species == species.lower()) &
+            (DatabaseVersion.version == subquery)
+        )
+
+        result = await db.execute(query)
+        version_data = result.scalars().first()
+
+        if not version_data:
+            return {"version": None, "message": f"No database found for species: {species}"}
+
+        # Return data directly from the model
+        return {
+            "version": version_data.version,
+            "created_at": version_data.created_at.isoformat() if version_data.created_at else None,
+            "description": version_data.description,
+            "species": species,
+            "program": version_data.program_id  # This will include the program ID
+        }
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Error fetching database version for {species}: {str(e)}\n{error_details}")
+
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error fetching database version: {str(e)}"
+        )
