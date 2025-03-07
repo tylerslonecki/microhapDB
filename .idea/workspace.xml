@@ -6,19 +6,8 @@
   <component name="ChangeListManager">
     <list default="true" id="0ea7c9d8-62b7-4200-8333-3f1854176b42" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/microhapDB-backend/alembic/versions/26baaf267e89_initial_migration.py" beforeDir="false" afterPath="$PROJECT_DIR$/microhapDB-backend/alembic/versions/26baaf267e89_initial_migration.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/microhapDB-backend/src/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/microhapDB-backend/src/models.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/microhapDB-backend/src/posts/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/microhapDB-backend/src/posts/models.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/microhapDB-backend/src/posts/router.py" beforeDir="false" afterPath="$PROJECT_DIR$/microhapDB-backend/src/posts/router.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/microhapDB-backend/src/posts/service.py" beforeDir="false" afterPath="$PROJECT_DIR$/microhapDB-backend/src/posts/service.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/microhapDB-frontend/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/microhapDB-frontend/package-lock.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/microhapDB-frontend/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/microhapDB-frontend/package.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/microhapDB-frontend/src/components/DetailsAlt.vue" beforeDir="false" afterPath="$PROJECT_DIR$/microhapDB-frontend/src/components/DetailsAlt.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/microhapDB-frontend/src/components/Report.vue" beforeDir="false" afterPath="$PROJECT_DIR$/microhapDB-frontend/src/components/Report.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/microhapDB-frontend/src/components/Sequences.vue" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/microhapDB-frontend/src/components/Sidebar.vue" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/microhapDB-frontend/src/components/SystemAdministration.vue" beforeDir="false" afterPath="$PROJECT_DIR$/microhapDB-frontend/src/components/SystemAdministration.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/microhapDB-frontend/src/components/Visualizations.vue" beforeDir="false" afterPath="$PROJECT_DIR$/microhapDB-frontend/src/components/Visualizations.vue" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/microhapDB-frontend/src/App.vue" beforeDir="false" afterPath="$PROJECT_DIR$/microhapDB-frontend/src/App.vue" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/microhapDB-frontend/src/router.js" beforeDir="false" afterPath="$PROJECT_DIR$/microhapDB-frontend/src/router.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/test_madc/DSp23-8876_MADC_microhap_TEST.csv" beforeDir="false" afterPath="$PROJECT_DIR$/test_madc/DSp23-8876_MADC_microhap_TEST.csv" afterDir="false" />
     </list>

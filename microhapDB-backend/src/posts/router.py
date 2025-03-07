@@ -1144,6 +1144,99 @@ async def get_histogram_data(
         raise HTTPException(status_code=500, detail=f"Error retrieving histogram data: {e}")
 
 
+@router.get("/visualizations/comparative")
+async def get_comparative_data(
+        species: str,
+        chromosome: str,
+        program_id: int,
+        db: AsyncSession = Depends(get_session)
+):
+    """
+    Returns comparative data between a program's alleles and the entire database.
+    For each locus, returns:
+    1. Total allele count in the database
+    2. Allele count in the specified program
+    3. List of alleles present in the database but missing from the program
+    """
+    try:
+        # Query parameters
+        query_params = {'species': species, 'chromosome': chromosome, 'program_id': program_id}
+
+        # 1. Get total allele counts by locus for the entire database
+        total_query = """
+            SELECT 
+                split_part(s.alleleid, '.', 1) AS chromosome,
+                split_part(split_part(s.alleleid, '.', 2), '|', 1) AS locus,
+                COUNT(*) AS total_count,
+                array_agg(s.alleleid) AS allele_ids
+            FROM sequence_table s
+            WHERE s.species = :species
+              AND split_part(s.alleleid, '.', 1) = :chromosome
+            GROUP BY 
+                split_part(s.alleleid, '.', 1),
+                split_part(split_part(s.alleleid, '.', 2), '|', 1)
+        """
+        
+        # 2. Get allele counts by locus for the specified program
+        program_query = """
+            SELECT 
+                split_part(s.alleleid, '.', 1) AS chromosome,
+                split_part(split_part(s.alleleid, '.', 2), '|', 1) AS locus,
+                COUNT(*) AS program_count,
+                array_agg(s.alleleid) AS program_allele_ids
+            FROM sequence_table s
+            JOIN sequence_presence sp ON 
+                s.alleleid = sp.alleleid AND 
+                s.species = sp.species
+            WHERE s.species = :species
+              AND split_part(s.alleleid, '.', 1) = :chromosome
+              AND sp.program_id = :program_id
+            GROUP BY 
+                split_part(s.alleleid, '.', 1),
+                split_part(split_part(s.alleleid, '.', 2), '|', 1)
+        """
+
+        # Execute the queries
+        total_result = await db.execute(text(total_query), query_params)
+        program_result = await db.execute(text(program_query), query_params)
+        
+        # Process results
+        total_data = {row.locus: {"total_count": row.total_count, "allele_ids": row.allele_ids} 
+                     for row in total_result}
+        program_data = {row.locus: {"program_count": row.program_count, "program_allele_ids": row.program_allele_ids} 
+                       for row in program_result}
+        
+        # Combine the results
+        combined_data = []
+        for locus, total_info in total_data.items():
+            program_info = program_data.get(locus, {"program_count": 0, "program_allele_ids": []})
+            
+            # Calculate missing alleles
+            total_allele_set = set(total_info["allele_ids"])
+            program_allele_set = set(program_info.get("program_allele_ids", []))
+            missing_alleles = list(total_allele_set - program_allele_set)
+            
+            combined_data.append({
+                "locus": locus,
+                "total_count": total_info["total_count"],
+                "program_count": program_info.get("program_count", 0),
+                "difference": total_info["total_count"] - program_info.get("program_count", 0),
+                "missing_alleles": missing_alleles,
+                "missing_count": len(missing_alleles)
+            })
+        
+        # Sort by locus
+        combined_data.sort(key=lambda x: x["locus"])
+        
+        return {"data": combined_data}
+    except Exception as e:
+        logging.error(f"Error retrieving comparative data: {e}")
+        import traceback
+        error_details = traceback.format_exc()
+        logging.error(f"Error details: {error_details}")
+        raise HTTPException(status_code=500, detail=f"Error retrieving comparative data: {e}")
+
+
 @router.get("/visualizations/chromosomes")
 async def get_chromosomes_for_species(
         species: str,

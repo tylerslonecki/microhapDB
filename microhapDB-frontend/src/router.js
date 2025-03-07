@@ -10,6 +10,7 @@ import Query from './components/Query.vue';
 import Details from '@/components/Details.vue';
 import DetailsAlt from '@/components/DetailsAlt.vue';
 import Visualizations from '@/components/Visualizations.vue';
+import Visualizations2 from '@/components/Visualizations2.vue';
 // import Alignment from './components/Alignment.vue';
 
 import store from './store';
@@ -55,6 +56,11 @@ const routes = [
     path: '/visualizations', 
     name: 'Visualizations', 
     component: Visualizations
+  },
+  { 
+    path: '/visualizations-comparative', 
+    name: 'Visualizations2', 
+    component: Visualizations2
   }
 
   // { path: '/alignment', name: 'Alignment', component: Alignment }

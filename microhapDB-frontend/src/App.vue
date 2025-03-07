@@ -162,7 +162,19 @@ export default {
         {
           label: 'Visualizations',
           icon: 'pi pi-chart-bar',
-          route: '/visualizations',
+          isOpen: false,
+          subItems: [
+            {
+              label: 'Histogram',
+              icon: 'pi pi-chart-bar',
+              route: '/visualizations',
+            },
+            {
+              label: 'Comparative Analysis',
+              icon: 'pi pi-chart-line',
+              route: '/visualizations-comparative',
+            }
+          ]
         },
         {
           label: 'Database Report',
