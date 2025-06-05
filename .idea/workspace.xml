@@ -6,9 +6,6 @@
   <component name="ChangeListManager">
     <list default="true" id="0ea7c9d8-62b7-4200-8333-3f1854176b42" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/microhapDB-backend/src/posts/router.py" beforeDir="false" afterPath="$PROJECT_DIR$/microhapDB-backend/src/posts/router.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/microhapDB-frontend/src/App.vue" beforeDir="false" afterPath="$PROJECT_DIR$/microhapDB-frontend/src/App.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/microhapDB-frontend/src/router.js" beforeDir="false" afterPath="$PROJECT_DIR$/microhapDB-frontend/src/router.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/test_madc/DSp23-8876_MADC_microhap_TEST.csv" beforeDir="false" afterPath="$PROJECT_DIR$/test_madc/DSp23-8876_MADC_microhap_TEST.csv" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
