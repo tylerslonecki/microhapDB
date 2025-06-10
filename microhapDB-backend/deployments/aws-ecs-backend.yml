@@ -1,0 +1,21 @@
+version: '3'
+services:
+  microhap-backend:
+    image: your-account-id.dkr.ecr.us-east-2.amazonaws.com/microhap-backend:latest
+    cpu: 256
+    memory: 512
+    essential: true
+    portMappings:
+      - containerPort: 8000
+        protocol: tcp
+    environment:
+      - name: DATABASE_URL
+        value: postgresql://postgres:bipostgres@database-1.czwgjenckjul.us-east-2.rds.amazonaws.com:5432/haplosearch
+      - name: ENVIRONMENT
+        value: production
+    logConfiguration:
+      logDriver: awslogs
+      options:
+        awslogs-group: /ecs/microhap-backend
+        awslogs-region: us-east-2
+        awslogs-stream-prefix: ecs 

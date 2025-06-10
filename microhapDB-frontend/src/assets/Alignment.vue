@@ -4,10 +4,9 @@
       <div class="filter-form">
         <select v-model="species" class="species-dropdown" @change="resetFilters">
           <option disabled value="">Select Species</option>
-          <option value="sweetpotato">Sweetpotato</option>
-          <option value="blueberry">Blueberry</option>
-          <option value="alfalfa">Alfalfa</option>
-          <option value="cranberry">Cranberry</option>
+          <option v-for="speciesOption in speciesOptions" :key="speciesOption.value" :value="speciesOption.value">
+            {{ speciesOption.label }}
+          </option>
         </select>
         <select v-model="filterField" class="filter-dropdown" @change="clearFilter">
           <option value="">None</option>
@@ -28,6 +27,7 @@
   <script>
   import axiosInstance from '../axiosConfig'; // Import your axios configuration
   import VueAlignment from 'vue-alignment';
+  import { SUPPORTED_SPECIES } from '../utils/speciesConfig';
   
   export default {
     components: {
@@ -39,6 +39,7 @@
         filter: '',
         filterField: '',
         species: '',
+        speciesOptions: SUPPORTED_SPECIES,
       };
     },
     methods: {
@@ -117,5 +118,22 @@
     text-align: center;
   }
   </style> -->
-  <template></template>
-  <script></script>
+<template>
+  <div class="alignment-placeholder">
+    <p>Alignment component is currently disabled</p>
+  </div>
+</template>
+
+<script>
+export default {
+  name: 'Alignment'
+}
+</script>
+
+<style scoped>
+.alignment-placeholder {
+  padding: 20px;
+  text-align: center;
+  color: #666;
+}
+</style>

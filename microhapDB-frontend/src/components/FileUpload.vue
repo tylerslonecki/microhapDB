@@ -4,10 +4,9 @@
       <label for="pipelineSelect" class="pipeline-label">Please select a Species Database</label>
       <select v-model="selectedPipeline" class="dropdown">
         <option disabled value="">Please select one</option>
-        <option value="alfalfa">Alfalfa</option>
-        <option value="cranberry">Cranberry</option>
-        <!-- <option value="blueberry">Blueberry</option> -->
-        <option value="sweetpotato">Sweetpotato</option>
+        <option v-for="species in speciesOptions" :key="species.value" :value="species.value">
+          {{ species.label }}
+        </option>
       </select>
     </div>
         <!-- Project Dropdown (new) -->
@@ -35,12 +34,14 @@
 <script>
 import { ref } from 'vue';
 import axiosInstance from '../axiosConfig'; // Import the centralized Axios instance
+import { SUPPORTED_SPECIES } from '../utils/speciesConfig';
 
 export default {
   setup() {
     const selectedFiles = ref([]);
     const selectedPipeline = ref("");
     const uploadMessage = ref(null);
+    const speciesOptions = SUPPORTED_SPECIES;
 
     const handleFileChange = (event) => {
       selectedFiles.value = Array.from(event.target.files);
@@ -75,7 +76,7 @@ export default {
       }
     };
 
-    return { selectedFiles, selectedPipeline, uploadMessage, handleFileChange, submitData };
+    return { selectedFiles, selectedPipeline, uploadMessage, handleFileChange, submitData, speciesOptions };
   }
 };
 </script>

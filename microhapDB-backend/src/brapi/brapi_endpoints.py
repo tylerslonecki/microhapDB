@@ -6,6 +6,7 @@
 # from sqlalchemy.orm import Session
 # from .brapi_models import BrAPIVariantResponse, Metadata, BrAPIVariant
 # from .models import Sequence, get_session
+# from ..config import get_species_values
 #
 # brapi_router = APIRouter()
 #
@@ -16,7 +17,7 @@
 #     pageSize: int = 1000,
 #     db: AsyncSession = Depends(get_session)
 # ):
-#     valid_species = ["sweetpotato", "blueberry", "alfalfa", "cranberry"]
+#     valid_species = get_species_values()
 #     if species not in valid_species:
 #         raise HTTPException(status_code=400, detail="Invalid species provided.")
 #

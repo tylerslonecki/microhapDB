@@ -70,6 +70,7 @@
 import { ref, onMounted } from 'vue';
 import { Chart, registerables } from 'chart.js';
 import axiosInstance from '../axiosConfig';
+import { SUPPORTED_SPECIES } from '../utils/speciesConfig';
 
 // Import PrimeVue components
 import Dropdown from 'primevue/dropdown';
@@ -78,11 +79,7 @@ import Button from 'primevue/button';
 // Register all Chart.js components
 Chart.register(...registerables);
 
-const speciesOptions = [
-  { label: 'Alfalfa', value: 'alfalfa' },
-  { label: 'Sweetpotato', value: 'sweetpotato' },
-  { label: 'Cranberry', value: 'cranberry' }
-];
+const speciesOptions = SUPPORTED_SPECIES;
 
 // Reactive variables for dropdown selections and histogram data
 const selectedSpecies = ref('');

@@ -84,19 +84,19 @@
           sortable 
         ></Column>
 
-        <!-- Source Column -->
+        <!-- Project Column -->
         <Column 
-          field="source" 
-          header="Source" 
-          sortable 
-        ></Column>
+          field="source"
+          header="Project"
+          sortable
+        />
 
-        <!-- Owner Column -->
+        <!-- Program Column -->
         <Column 
-          field="owner" 
-          header="Owner" 
-          sortable 
-        ></Column>          
+          field="owner"
+          header="Program"
+          sortable
+        />          
 
         <!-- Add other columns as needed -->
       </DataTable>
@@ -207,16 +207,14 @@ export default {
         return;
       }
 
-      const headers = ['Allele ID', 'Accession', 'Source', 'Owner'];
-      const rows = this.selectedAccessions.map(item => [
-        item.alleleid, 
-        item.accession, 
-        item.source, 
-        item.owner
-      ]);
+      const headers = ['Allele ID', 'Accession', 'Project', 'Program'];
+      const csvRows = [headers.join(',')];
+      this.selectedAccessions.forEach(item => {
+        csvRows.push(`${item.alleleid},${item.accession},${item.source},${item.owner}`);
+      });
+
       let csvContent = "data:text/csv;charset=utf-8," 
-        + headers.join(",") + "\n" 
-        + rows.map(e => e.join(",")).join("\n");
+        + csvRows.join("\n");
 
       const encodedUri = encodeURI(csvContent);
       const link = document.createElement("a");

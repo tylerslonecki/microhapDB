@@ -1,5 +1,5 @@
 <template>
-  <div class="system-admin-container">
+  <div class="data-upload-container">
     <!-- Global Confirmation Dialog -->
     <ConfirmDialog />
 
@@ -75,7 +75,7 @@
 
                 <!-- Program Dropdown -->
                 <div class="dropdown-container" v-if="selectedPipelineMadc">
-                  <label for="programSelectMadc" class="program-label">Please select or add Program/Owner</label>
+                  <label for="programSelectMadc" class="program-label">Please select or add Program</label>
                   <Dropdown
                     id="programSelectMadc"
                     v-model="selectedProgramMadc"
@@ -99,27 +99,27 @@
                   </div>
                 </div>
 
-                <!-- Source Dropdown with Conditional Rendering - MADC Upload Tab -->
+                <!-- Project Dropdown with Conditional Rendering - MADC Upload Tab -->
                 <div class="dropdown-container" v-if="selectedProgramMadc">
-                  <label for="sourceSelectMadc" class="source-label">Please select or add Source</label>
+                  <label for="projectSelectMadc" class="project-label">Please select or add Project</label>
                   <Dropdown
-                    id="sourceSelectMadc"
-                    v-model="selectedSourceMadc"
-                    :options="sourceOptionsMadc"
+                    id="projectSelectMadc"
+                    v-model="selectedProjectMadc"
+                    :options="projectOptionsMadc"
                     optionLabel="name"
                     optionValue="value"
                     placeholder="Please select one"
                     class="w-full"
-                    @change="handleSourceChangeMadc"
-                    :disabled="sourceOptionsMadc.length <= 1"
+                    @change="handleProjectChangeMadc"
+                    :disabled="projectOptionsMadc.length <= 1"
                   />
-                  <!-- New Source Input -->
-                  <div v-if="selectedSourceMadc === 'new'" class="new-source-input">
-                    <InputText v-model="newSourceNameMadc" placeholder="Enter new source name" />
+                  <!-- New Project Input -->
+                  <div v-if="selectedProjectMadc === 'new'" class="new-project-input">
+                    <InputText v-model="newProjectNameMadc" placeholder="Enter new project name" />
                     <Button 
-                      label="Create Source" 
+                      label="Create Project" 
                       icon="pi pi-plus" 
-                      @click="submitNewSourceMadc"
+                      @click="submitNewProjectMadc"
                       class="mt-2"
                     />
                   </div>
@@ -222,7 +222,7 @@
                   </div>
                 </div>
                 <div class="dropdown-container" v-if="selectedPipelinePav">
-                  <label for="programSelectPav" class="program-label">Please select or add Program/Owner</label>
+                  <label for="programSelectPav" class="program-label">Please select or add Program</label>
                   <Dropdown
                     id="programSelectPav"
                     v-model="selectedProgramPav"
@@ -370,7 +370,7 @@
 
 <script>
 import { ref, onMounted, watch } from 'vue';
-import axiosInstance from '../axiosConfig';
+import axiosInstance, { axiosLongTimeout } from '../axiosConfig';
 import { mapGetters, mapActions } from 'vuex';
 import Dropdown from 'primevue/dropdown';
 import FileUpload from 'primevue/fileupload';
@@ -384,9 +384,11 @@ import Panel from 'primevue/panel';
 import ConfirmDialog from 'primevue/confirmdialog';
 import Dialog from 'primevue/dialog';
 import { useConfirm } from 'primevue/useconfirm';
+import { useToast } from 'primevue/usetoast';
+import { SUPPORTED_SPECIES } from '../utils/speciesConfig';
 
 export default {
-  name: 'SystemAdministration',
+  name: 'DataUpload',
   components: {
     Dropdown,
     FileUpload,
@@ -408,21 +410,17 @@ export default {
   },
   setup() {
     const confirm = useConfirm();
+    const toast = useToast();
 
     // Shared state
-    const pipelineOptions = ref([
-      { label: 'Alfalfa', value: 'alfalfa' },
-      { label: 'Cranberry', value: 'cranberry' },
-      { label: 'Blueberry', value: 'blueberry' },
-      { label: 'Sweetpotato', value: 'sweetpotato' }
-    ]);
+    const pipelineOptions = ref(SUPPORTED_SPECIES);
 
     // Program Options
     const programOptionsMadc = ref([]);
     const programOptionsPav = ref([]);
 
-    // Source Options for MADC
-    const sourceOptionsMadc = ref([{ name: "Add new source", value: "new" }]);
+    // Project Options for MADC
+    const projectOptionsMadc = ref([{ name: "Add new project", value: "new" }]);
 
     // MADC Upload state
     const selectedFilesMadc = ref([]);
@@ -431,8 +429,8 @@ export default {
     const newProgramNameMadc = ref("");
     const uploadMessageMadc = ref(null);
     const jobsMadc = ref([]);
-    const selectedSourceMadc = ref("");
-    const newSourceNameMadc = ref("");
+    const selectedProjectMadc = ref("");
+    const newProjectNameMadc = ref("");
 
     // PAV Upload state
     const selectedFilesPav = ref([]);
@@ -480,9 +478,9 @@ export default {
             selectedProgramMadc.value = '';
           }
           
-          // Reset source selection when species changes
-          selectedSourceMadc.value = '';
-          sourceOptionsMadc.value = [{ name: "Add new source", value: "new" }];
+          // Reset project selection when species changes
+          selectedProjectMadc.value = '';
+          projectOptionsMadc.value = [{ name: "Add new project", value: "new" }];
         } else if (target === 'pav') {
           programOptionsPav.value = [...mappedPrograms, { name: "Add new program", value: "new" }];
           
@@ -502,17 +500,17 @@ export default {
       }
     };
 
-    // Fetch Sources by Program
-    const fetchSourcesByProgram = async (programName) => {
+    // Fetch Projects by Program
+    const fetchProjectsByProgram = async (programName) => {
       if (!programName || programName === 'new') {
-        // If no program selected or "new" is selected, just show the "Add new source" option
-        sourceOptionsMadc.value = [{ name: "Add new source", value: "new" }];
-        selectedSourceMadc.value = 'new'; // Automatically select "Add new source"
+        // If no program selected or "new" is selected, just show the "Add new project" option
+        projectOptionsMadc.value = [{ name: "Add new project", value: "new" }];
+        selectedProjectMadc.value = 'new'; // Automatically select "Add new project"
         return;
       }
       
       try {
-        uploadMessageMadc.value = "Loading sources...";
+        uploadMessageMadc.value = "Loading projects...";
         
         // First we need to get the program ID from the name
         const programResponse = await axiosInstance.get('/posts/programs/list');
@@ -522,45 +520,45 @@ export default {
         if (!program) {
           console.error(`Program not found: ${programName}`);
           uploadMessageMadc.value = null;
-          // If program not found, just show "Add new source" and select it
-          sourceOptionsMadc.value = [{ name: "Add new source", value: "new" }];
-          selectedSourceMadc.value = 'new';
+          // If program not found, just show "Add new project" and select it
+          projectOptionsMadc.value = [{ name: "Add new project", value: "new" }];
+          selectedProjectMadc.value = 'new';
           return;
         }
         
-        // Now fetch sources for this program
-        const response = await axiosInstance.get(`/posts/sources/by_program/${program.id}`);
-        const fetchedSources = response.data || [];
+        // Now fetch projects for this program
+        const response = await axiosInstance.get(`/posts/projects/by_program/${program.id}`);
+        const fetchedProjects = response.data || [];
         
-        // Map the sources to the correct format
-        const mappedSources = fetchedSources.map(source => ({
-          name: source.name,
-          value: source.name
+        // Map the projects to the correct format
+        const mappedProjects = fetchedProjects.map(project => ({
+          name: project.name,
+          value: project.name
         }));
         
-        // Add the "new source" option
-        sourceOptionsMadc.value = [...mappedSources, { name: "Add new source", value: "new" }];
+        // Add the "new project" option
+        projectOptionsMadc.value = [...mappedProjects, { name: "Add new project", value: "new" }];
         
-        // If no sources exist for this program, automatically select "Add new source"
-        if (mappedSources.length === 0) {
-          selectedSourceMadc.value = 'new';
+        // If no projects exist for this program, automatically select "Add new project"
+        if (mappedProjects.length === 0) {
+          selectedProjectMadc.value = 'new';
         } else {
-          // Reset source selection
-          selectedSourceMadc.value = '';
+          // Reset project selection
+          selectedProjectMadc.value = '';
         }
         
         uploadMessageMadc.value = null;
       } catch (error) {
-        console.error(`Error fetching sources for program ${programName}:`, error);
-        uploadMessageMadc.value = `Error loading sources for program ${programName}`;
+        console.error(`Error fetching projects for program ${programName}:`, error);
+        uploadMessageMadc.value = `Error loading projects for program ${programName}`;
         
-        // In case of error, just show "Add new source" and select it
-        sourceOptionsMadc.value = [{ name: "Add new source", value: "new" }];
-        selectedSourceMadc.value = 'new';
+        // In case of error, just show "Add new project" and select it
+        projectOptionsMadc.value = [{ name: "Add new project", value: "new" }];
+        selectedProjectMadc.value = 'new';
       }
     };
 
-    // Fetch Programs and Sources
+    // Fetch Programs and Projects
     const fetchPrograms = async () => {
       try {
         const response = await axiosInstance.get("/posts/programs/list");
@@ -583,32 +581,32 @@ export default {
       }
     };
 
-    // Improved fetchSources to better handle initial state
-    const fetchSources = async () => {
+    // Improved fetchProjects to better handle initial state
+    const fetchProjects = async () => {
       try {
-        const response = await axiosInstance.get("/posts/sources/list");
-        const fetchedSources = response.data || [];
+        const response = await axiosInstance.get("/posts/projects/list");
+        const fetchedProjects = response.data || [];
         
-        // Map sources to dropdown format
-        const mappedSources = fetchedSources.map((source) => ({
-          name: source.name,
-          value: source.name
+        // Map projects to dropdown format
+        const mappedProjects = fetchedProjects.map((project) => ({
+          name: project.name,
+          value: project.name
         }));
         
-        // Add the "new source" option
-        sourceOptionsMadc.value = [...mappedSources, { name: "Add new source", value: "new" }];
+        // Add the "new project" option
+        projectOptionsMadc.value = [...mappedProjects, { name: "Add new project", value: "new" }];
         
         // Set initial selection
-        if (fetchedSources.length === 0) {
-          selectedSourceMadc.value = 'new';
+        if (fetchedProjects.length === 0) {
+          selectedProjectMadc.value = 'new';
         } else {
           // Don't set any default, make the user choose explicitly
-          selectedSourceMadc.value = '';
+          selectedProjectMadc.value = '';
         }
         
-        return fetchedSources;
+        return fetchedProjects;
       } catch (error) {
-        console.error("Error fetching sources:", error);
+        console.error("Error fetching projects:", error);
         throw error;
       }
     };
@@ -651,34 +649,45 @@ export default {
       }
     };
 
-    // Enhanced createSource function
-    const createSource = async (sourceName) => {
+    // Enhanced createProject function
+    const createProject = async (projectName) => {
       try {
-        const response = await axiosInstance.post('/posts/sources/create', { name: sourceName });
-        const newSource = response.data.name;
+        const response = await axiosLongTimeout.post('/posts/projects/create', { name: projectName });
+        const newProject = response.data.name;
         
-        // Update the source options locally
-        const newSourceObj = { name: newSource, value: newSource };
-        sourceOptionsMadc.value = [...sourceOptionsMadc.value.filter(s => s.value !== 'new'), 
-                                  newSourceObj, 
-                                  { name: "Add new source", value: "new" }];
+        // Update the project options locally
+        const newProjectObj = { name: newProject, value: newProject };
+        projectOptionsMadc.value = [...projectOptionsMadc.value.filter(p => p.value !== 'new'), 
+                                  newProjectObj, 
+                                  { name: "Add new project", value: "new" }];
         
-        return { success: true, source: newSource };
+        // Check if there's a warning about duplicate project name
+        if (response.data.warning) {
+          // Display the warning in a toast message
+          toast.add({
+            severity: 'warn',
+            summary: 'Duplicate Project',
+            detail: response.data.warning,
+            life: 5000
+          });
+        }
+        
+        return { success: true, project: newProject };
       } catch (error) {
-        console.error("Error creating source:", error);
-        return { success: false, error: error.response?.data?.message || "Failed to create source" };
+        console.error("Error creating project:", error);
+        return { success: false, error: error.response?.data?.message || "Failed to create project" };
       }
     };
 
-    // Handle Program/Source change events
+    // Handle Program/Project change events
     const handleProgramChangeMadc = () => {
       if (selectedProgramMadc.value === 'new') {
-        // If "new program" selected, reset sources
-        sourceOptionsMadc.value = [{ name: "Add new source", value: "new" }];
-        selectedSourceMadc.value = 'new';
+        // If "new program" selected, reset projects
+        projectOptionsMadc.value = [{ name: "Add new project", value: "new" }];
+        selectedProjectMadc.value = 'new';
       } else if (selectedProgramMadc.value) {
-        // If a program is selected, fetch relevant sources
-        fetchSourcesByProgram(selectedProgramMadc.value);
+        // If a program is selected, fetch relevant projects
+        fetchProjectsByProgram(selectedProgramMadc.value);
       }
     };
     
@@ -688,8 +697,8 @@ export default {
       }
     };
     
-    const handleSourceChangeMadc = () => {
-      if (selectedSourceMadc.value === 'new') {
+    const handleProjectChangeMadc = () => {
+      if (selectedProjectMadc.value === 'new') {
         // Additional actions if needed
       }
     };
@@ -733,20 +742,20 @@ export default {
       }
     };
 
-    const submitNewSourceMadc = async () => {
-      if (!newSourceNameMadc.value.trim()) {
-        uploadMessageMadc.value = "Please enter a valid source name.";
+    const submitNewProjectMadc = async () => {
+      if (!newProjectNameMadc.value.trim()) {
+        uploadMessageMadc.value = "Please enter a valid project name.";
         return;
       }
       
-      uploadMessageMadc.value = "Creating source...";
-      const result = await createSource(newSourceNameMadc.value.trim());
+      uploadMessageMadc.value = "Creating project...";
+      const result = await createProject(newProjectNameMadc.value.trim());
       
       if (result.success) {
-        // Set the selected source to the newly created one
-        selectedSourceMadc.value = result.source;
-        newSourceNameMadc.value = "";
-        uploadMessageMadc.value = "Source created successfully.";
+        // Set the selected project to the newly created one
+        selectedProjectMadc.value = result.project;
+        newProjectNameMadc.value = "";
+        uploadMessageMadc.value = "Project created successfully.";
       } else {
         uploadMessageMadc.value = result.error;
       }
@@ -754,7 +763,7 @@ export default {
 
     // Improved checkAndSubmitMadcData with better flow control
     const checkAndSubmitMadcData = async () => {
-      // First, check if new program/source needs to be created
+      // First, check if new program/project needs to be created
       if (selectedProgramMadc.value === 'new' && newProgramNameMadc.value.trim()) {
         // Create the program first
         uploadMessageMadc.value = "Creating program...";
@@ -771,22 +780,22 @@ export default {
         uploadMessageMadc.value = "Program created.";
       }
       
-      if (selectedSourceMadc.value === 'new' && newSourceNameMadc.value.trim()) {
-        // Create the source first
-        uploadMessageMadc.value = "Creating source...";
-        const sourceResult = await createSource(newSourceNameMadc.value.trim());
+      if (selectedProjectMadc.value === 'new' && newProjectNameMadc.value.trim()) {
+        // Create the project first
+        uploadMessageMadc.value = "Creating project...";
+        const projectResult = await createProject(newProjectNameMadc.value.trim());
         
-        if (!sourceResult.success) {
-          uploadMessageMadc.value = sourceResult.error;
+        if (!projectResult.success) {
+          uploadMessageMadc.value = projectResult.error;
           return;
         }
         
-        // Set the created source
-        selectedSourceMadc.value = sourceResult.source;
-        newSourceNameMadc.value = "";
+        // Set the created project
+        selectedProjectMadc.value = projectResult.project;
+        newProjectNameMadc.value = "";
         uploadMessageMadc.value = uploadMessageMadc.value 
-          ? `${uploadMessageMadc.value} Source created.` 
-          : "Source created.";
+          ? `${uploadMessageMadc.value} Project created.` 
+          : "Project created.";
       }
       
       // Now validate all fields
@@ -845,13 +854,13 @@ export default {
         return false;
       }
       
-      if (!selectedSourceMadc.value) {
-        uploadMessageMadc.value = "Please select a source.";
+      if (!selectedProjectMadc.value) {
+        uploadMessageMadc.value = "Please select a project.";
         return false;
       }
       
-      if (selectedSourceMadc.value === 'new' && !newSourceNameMadc.value) {
-        uploadMessageMadc.value = "Please enter a name for the new source.";
+      if (selectedProjectMadc.value === 'new' && !newProjectNameMadc.value) {
+        uploadMessageMadc.value = "Please enter a name for the new project.";
         return false;
       }
       
@@ -880,7 +889,7 @@ export default {
       });
       fd.append("species", selectedPipelineMadc.value);
       fd.append("program_name", selectedProgramMadc.value);
-      fd.append("source_name", selectedSourceMadc.value);
+      fd.append("project_name", selectedProjectMadc.value);
       fd.append("force", "true");  // Flag to force commit despite duplicates
       try {
         const response = await axiosInstance.post("/posts/upload/", fd, {
@@ -1087,14 +1096,14 @@ export default {
       }
     });
 
-    // Watch for program selection to update sources
+    // Watch for program selection to update projects
     watch(selectedProgramMadc, (newValue) => {
       if (newValue && newValue !== 'new') {
-        fetchSourcesByProgram(newValue);
+        fetchProjectsByProgram(newValue);
       } else if (newValue === 'new') {
-        // When "Add new program" is selected, reset source options to just "Add new source"
-        sourceOptionsMadc.value = [{ name: "Add new source", value: "new" }];
-        selectedSourceMadc.value = 'new';
+        // When "Add new program" is selected, reset project options to just "Add new project"
+        projectOptionsMadc.value = [{ name: "Add new project", value: "new" }];
+        selectedProjectMadc.value = 'new';
       }
     });
 
@@ -1109,7 +1118,7 @@ export default {
       try {
         await Promise.all([
           fetchPrograms(),
-          fetchSources()
+          fetchProjects()
         ]);
         
         // Clear loading messages
@@ -1145,15 +1154,15 @@ export default {
       pipelineOptions,
       programOptionsMadc,
       programOptionsPav,
-      sourceOptionsMadc,
+      projectOptionsMadc,
       selectedFilesMadc,
       selectedPipelineMadc,
       selectedProgramMadc,
       newProgramNameMadc,
       uploadMessageMadc,
       jobsMadc,
-      selectedSourceMadc,
-      newSourceNameMadc,
+      selectedProjectMadc,
+      newProjectNameMadc,
       handleFileSelectMadc,
       checkAndSubmitMadcData,
       commitMadcData,
@@ -1162,8 +1171,8 @@ export default {
       submitNewProgramPav,
       handleProgramChangeMadc,
       handleProgramChangePav,
-      submitNewSourceMadc,
-      handleSourceChangeMadc,
+      submitNewProjectMadc,
+      handleProjectChangeMadc,
       selectedFilesPav,
       selectedPipelinePav,
       selectedProgramPav,
@@ -1192,14 +1201,14 @@ export default {
       capitalizeFirst,
       formatDate,
       fetchProgramsBySpecies,
-      fetchSourcesByProgram,
+      fetchProjectsByProgram,
     };
   },
 };
 </script>
 
 <style scoped>
-.system-admin-container {
+.data-upload-container {
   max-width: 1200px;
   margin: auto;
   padding: 20px;
@@ -1210,15 +1219,15 @@ export default {
 .dropdown-container, .file-upload-container, .table-container {
   display: flex;
   flex-direction: column;
-  align-items: start;
+  align-items: flex-start;
   margin-bottom: 20px;
   gap: 10px;
 }
-.pipeline-label, .program-label, .source-label {
+.pipeline-label, .program-label, .project-label {
   font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
   margin-bottom: 5px;
 }
-.new-program-input, .new-source-input {
+.new-program-input, .new-project-input {
   margin-top: 10px;
 }
 .upload-button {
@@ -1372,7 +1381,7 @@ export default {
 
 
 /* Improve dropdown header appearance */
-.pipeline-label, .program-label, .source-label {
+.pipeline-label, .program-label, .project-label {
   font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
   margin-bottom: 8px;
   font-weight: 600;

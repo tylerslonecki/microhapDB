@@ -15,13 +15,13 @@
       <Panel header="Selected Alleles" class="mb-4">
         <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-1">
           <button
-            v-for="allele in getSelectedSequences"
-            :key="allele.alleleid || allele.id"
+            v-for="(allele, index) in getSelectedSequences"
+            :key="`${allele.alleleid || allele.id}-${index}`"
             class="allele-button"
             @click="openAlleleDetail(allele)"
             :title="allele.alleleid || allele.id"
           >
-            <span class="remove-btn" @click.stop="removeAllele(allele)">X</span>
+            <span class="remove-btn" @click.stop="removeAllele(allele, index)">X</span>
             <div class="allele-button-header">
               <h3 class="font-mono text-xs">
                 {{ allele.alleleid || allele.id }}
@@ -84,8 +84,8 @@
             />
           </template>
           <Column field="accession" header="Accession" sortable />
-          <Column field="source" header="Source" sortable />
-          <Column field="owner" header="Owner" sortable />
+          <Column field="source" header="Project" sortable />
+          <Column field="owner" header="Program" sortable />
         </DataTable>
       </Panel>
   
@@ -138,8 +138,8 @@
             />
           </template>
           <Column field="accession" header="Accession" sortable />
-          <Column field="source" header="Source" sortable />
-          <Column field="owner" header="Owner" sortable />
+          <Column field="source" header="Project" sortable />
+          <Column field="owner" header="Program" sortable />
         </DataTable>
       </Panel>
   
@@ -168,7 +168,7 @@
             <span>{{ selectedAlleleDetail.associatedProject || 'None' }}</span>
           </p>
           <p>
-            <strong>Owner:</strong>
+            <strong>Program:</strong>
             <span>{{ selectedAlleleDetail.owner || 'None' }}</span>
           </p>
         </div>
@@ -184,7 +184,7 @@
       >
         <p>
           <strong>Shared Accessions</strong> represent the <strong>intersection</strong> of accessions across all selected alleles.
-          Only accessions that appear in every allele’s dataset are included.
+          Only accessions that appear in every allele's dataset are included.
         </p>
       </Dialog>
   
@@ -198,7 +198,7 @@
       >
         <p>
           <strong>Combined Accessions</strong> represent the <strong>union</strong> of accessions across all selected alleles.
-          This list includes every unique accession found in any allele’s dataset.
+          This list includes every unique accession found in any allele's dataset.
         </p>
       </Dialog>
     </div>
@@ -312,12 +312,12 @@
           
           console.log("API response:", data);
           
-          // Transform data
+          // Transform data - fix the mapping to use 'projects' instead of 'sources'
           this.detailedInfo = data.map(item => ({
             uniqueKey: `${item.alleleid}-${item.accession}`,
             alleleid: item.alleleid,
             accession: item.accession,
-            source: item.sources && item.sources.length ? item.sources.join(", ") : "",
+            source: item.projects && item.projects.length ? item.projects.join(", ") : "",
             owner: item.programs && item.programs.length ? item.programs.join(", ") : ""
           }));
           
@@ -363,12 +363,22 @@
       handleResize() {
         this.windowWidth = window.innerWidth;
       },
-      removeAllele(allele) {
-        this.$store.commit("REMOVE_SELECTED_SEQUENCE", allele);
+      removeAllele(allele, index) {
+        console.log('Removing allele:', allele, 'at index:', index);
+        console.log('Selected sequences before removal:', this.getSelectedSequences.length);
+        
+        // Use the index for more precise removal when available
+        if (typeof index !== 'undefined') {
+          this.$store.state.selectedSequences.splice(index, 1);
+        } else {
+          this.$store.commit("REMOVE_SELECTED_SEQUENCE", allele);
+        }
+        
+        console.log('Selected sequences after removal:', this.getSelectedSequences.length);
         this.fetchDetailedInfo();
       },
       downloadCSV(data, filename) {
-        const header = ["Accession", "Source", "Owner"];
+        const header = ["Accession", "Project", "Program"];
         const csvRows = [header.join(",")];
   
         data.forEach(item => {
@@ -407,8 +417,18 @@
         const count = this.detailedInfo.filter(item => item.alleleid === alleleId).length;
         return count !== undefined ? `${count} accession${count !== 1 ? 's' : ''}` : 'Loading...';
       },
+      ensureUniqueSequences() {
+        const beforeCount = this.getSelectedSequences.length;
+        this.$store.dispatch("ensureUniqueSequences");
+        const afterCount = this.getSelectedSequences.length;
+        
+        if (beforeCount !== afterCount) {
+          console.log(`Removed ${beforeCount - afterCount} duplicate sequences`);
+        }
+      },
     },
     mounted() {
+      this.ensureUniqueSequences();
       this.fetchDetailedInfo();
       window.addEventListener("resize", this.handleResize);
     },

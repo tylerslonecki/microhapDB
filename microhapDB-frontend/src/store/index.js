@@ -1,13 +1,11 @@
 // src/store/index.js
 import { createStore } from 'vuex';
+import auth from './modules/auth';
 
 export default createStore({
   state: {
-    isAuthenticated: false,
-    isAdmin: false,
-    username: null,
     selectedSequences: [],
-    // New state properties for Query component
+    // State properties for Query component
     query: {
       species: '',
       filters: {
@@ -25,30 +23,45 @@ export default createStore({
     }
   },
   mutations: {
-    setAuthState(state, { isAuthenticated, isAdmin, username }) {
-      state.isAuthenticated = isAuthenticated;
-      state.isAdmin = isAdmin;
-      state.username = username;
-    },
-    clearAuthState(state) {
-      state.isAuthenticated = false;
-      state.isAdmin = false;
-      state.username = null;
-    },
     setSelectedSequences(state, sequences) {
       state.selectedSequences = sequences;
     },
     /**
      * Removes a selected allele from the state.
-     * It filters out any sequence whose identifier matches the provided allele.
+     * First tries to find exact object reference match, then falls back to ID comparison.
+     * Uses findIndex to remove only the first matching sequence.
      */
     REMOVE_SELECTED_SEQUENCE(state, allele) {
+      // First try to find exact object reference match
+      let index = state.selectedSequences.findIndex(seq => seq === allele);
+      
+      // If not found by reference, try by ID
+      if (index === -1) {
+        const targetId = allele.alleleid || allele.id;
+        index = state.selectedSequences.findIndex(seq => {
+          return (seq.alleleid || seq.id) === targetId;
+        });
+      }
+      
+      if (index !== -1) {
+        state.selectedSequences.splice(index, 1);
+      }
+    },
+    /**
+     * Ensures selectedSequences contains only unique items based on alleleid
+     */
+    ENSURE_UNIQUE_SEQUENCES(state) {
+      const seen = new Set();
       state.selectedSequences = state.selectedSequences.filter(seq => {
-        // Compare using alleleid if available; fallback to id
-        return (seq.alleleid || seq.id) !== (allele.alleleid || allele.id);
+        const id = seq.alleleid || seq.id;
+        if (seen.has(id)) {
+          return false;
+        }
+        seen.add(id);
+        return true;
       });
     },
-    // New mutations for Query state
+    // Mutations for Query state
     setQueryState(state, payload) {
       state.query = { ...state.query, ...payload };
     },
@@ -71,47 +84,13 @@ export default createStore({
     }
   },
   actions: {
-    async checkAuthStatus({ commit }) {
-      try {
-        const response = await fetch('https://myfastapiapp.loca.lt/auth/status', {
-          credentials: 'include' // Ensure cookies are sent
-        });
-        if (!response.ok) {
-          throw new Error('Failed to fetch authentication status');
-        }
-        const authStatus = await response.json();
-        commit('setAuthState', {
-          isAuthenticated: authStatus.is_authenticated,
-          isAdmin: authStatus.is_admin,
-          username: authStatus.username
-        });
-      } catch (error) {
-        console.error('Error checking authentication status:', error);
-        commit('clearAuthState');
-      }
-    },
-    async logout({ commit }) {
-      try {
-        const response = await fetch('https://myfastapiapp.loca.lt/auth/logout', {
-          method: 'POST',
-          credentials: 'include',
-          headers: {
-            'Accept': 'application/json',
-          },
-        });
-        if (!response.ok) {
-          throw new Error('Logout failed');
-        }
-        await response.json();
-        commit('clearAuthState');
-      } catch (error) {
-        console.error('Error during logout:', error);
-      }
-    },
     updateSelectedSequences({ commit }, sequences) {
       commit('setSelectedSequences', sequences);
     },
-    // New actions for Query state
+    ensureUniqueSequences({ commit }) {
+      commit('ENSURE_UNIQUE_SEQUENCES');
+    },
+    // Actions for Query state
     updateQueryState({ commit }, payload) {
       commit('setQueryState', payload);
     },
@@ -120,11 +99,11 @@ export default createStore({
     }
   },
   getters: {
-    isAuthenticated: state => state.isAuthenticated,
-    isAdmin: state => state.isAdmin,
-    username: state => state.username,
     getSelectedSequences: state => state.selectedSequences,
-    // New getters for Query state
+    // Getters for Query state
     getQueryState: state => state.query
+  },
+  modules: {
+    auth
   }
 });

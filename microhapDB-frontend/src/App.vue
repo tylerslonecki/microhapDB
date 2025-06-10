@@ -7,7 +7,10 @@
         <div class="flex items-center">
           <!-- Hamburger Menu for All Screens -->
           <Button icon="pi pi-bars" class="mr-2" @click="toggleSidebar" aria-label="Toggle Menu" />
-          <img src="@/assets/HaploSearch-logo13.png" alt="Logo" class="menubar-logo" />
+          <!-- Make logo clickable to navigate to home page -->
+          <div class="logo-container" @click="navigateToHome($event)" @keydown.enter="navigateToHome($event)" @keydown.space="navigateToHome($event)" tabindex="0" role="button" aria-label="Navigate to home page">
+            <img src="@/assets/HaploSearch-logo13.png" alt="HaploSearch Logo" class="menubar-logo" />
+          </div>
         </div>
       </template>
 
@@ -62,21 +65,32 @@
             <div class="overflow-y-auto p-3">
               <ul class="list-none p-0 m-0">
                 <!-- Iterate through sidebarItems to dynamically generate menu -->
-                <li v-for="(item, index) in sidebarItems" :key="index">
+                <li v-for="(item, index) in sidebarItems.filter(item => item.visible !== false)" :key="index">
                   <!-- If the item has submenus, render a collapsible section -->
                   <div v-if="item.subItems" class="mb-2">
                     <div
-                      @click="toggleSubMenu(index)"
-                      class="p-3 flex align-items-center justify-content-between text-600 cursor-pointer"
+                      @click="toggleSubMenu(index, $event)"
+                      @keydown.enter="toggleSubMenu(index, $event)"
+                      @keydown.space="toggleSubMenu(index, $event)"
+                      class="p-3 flex align-items-center justify-content-between text-600 cursor-pointer submenu-toggle"
+                      tabindex="0"
+                      role="button"
+                      :aria-expanded="item.isOpen"
+                      :aria-label="`Toggle ${item.label} submenu`"
                     >
                       <span class="font-medium">{{ item.label }}</span>
                       <i :class="{'pi pi-chevron-down': !item.isOpen, 'pi pi-chevron-up': item.isOpen}"></i>
                     </div>
                     <ul v-show="item.isOpen" class="list-none pl-4">
-                      <li v-for="(subItem, subIndex) in item.subItems" :key="subIndex">
+                      <li v-for="(subItem, subIndex) in item.subItems.filter(subItem => subItem.visible !== false)" :key="subIndex">
                         <a
                           @click="navigate(subItem.route)"
-                          class="flex align-items-center cursor-pointer p-2 hover:bg-gray-200 rounded"
+                          @keydown.enter="navigate(subItem.route)"
+                          @keydown.space="navigate(subItem.route)"
+                          class="flex align-items-center cursor-pointer p-2 hover:bg-gray-200 rounded navigation-link"
+                          tabindex="0"
+                          role="button"
+                          :aria-label="`Navigate to ${subItem.label}`"
                         >
                           <i :class="subItem.icon" class="mr-2"></i>
                           <span class="font-medium">{{ subItem.label }}</span>
@@ -88,7 +102,12 @@
                   <div v-else>
                     <a
                       @click="navigate(item.route)"
-                      class="flex align-items-center cursor-pointer p-3 hover:bg-gray-200 rounded"
+                      @keydown.enter="navigate(item.route)"
+                      @keydown.space="navigate(item.route)"
+                      class="flex align-items-center cursor-pointer p-3 hover:bg-gray-200 rounded navigation-link"
+                      tabindex="0"
+                      role="button"
+                      :aria-label="`Navigate to ${item.label}`"
                     >
                       <i :class="item.icon" class="mr-2"></i>
                       <span class="font-medium">{{ item.label }}</span>
@@ -102,7 +121,7 @@
             <div class="mt-auto p-3">
               <hr class="mb-3 border-t border-gray-300" />
               <!-- Updated Logout Section: Replaced Avatar with Signout Icon -->
-              <a @click="handleLogout" class="flex align-items-center cursor-pointer p-3 gap-2 hover:bg-gray-200 rounded">
+              <a @click="handleLogout" @keydown.enter="handleLogout" @keydown.space="handleLogout" class="flex align-items-center cursor-pointer p-3 gap-2 hover:bg-gray-200 rounded logout-button" tabindex="0" role="button" aria-label="Logout">
                 <i class="pi pi-sign-out text-xl"></i>
                 <span class="font-bold">Logout</span>
               </a>
@@ -125,8 +144,21 @@
           'flex-1 p-4 overflow-auto': true
         }"
         class="content-container"
+        @click="isSidebarVisible && (isSidebarVisible = false)"
       >
-        <router-view></router-view>
+        <router-view v-slot="{ Component, route }">
+          <template v-if="route.meta.requiresAuth">
+            <AuthGuard 
+              :required-role="route.meta.requiredRole"
+              :required-roles="route.meta.requiredRoles"
+            >
+              <component :is="Component" />
+            </AuthGuard>
+          </template>
+          <template v-else>
+            <component :is="Component" />
+          </template>
+        </router-view>
       </main>
     </div>
   </div>
@@ -138,13 +170,17 @@ import Dropdown from 'primevue/dropdown';
 import Menubar from 'primevue/menubar';
 import Button from 'primevue/button';
 import Sidebar from 'primevue/sidebar';
+import axios from 'axios';
+import AuthGuard from '@/components/AuthGuard.vue';
 
 export default {
+  name: 'App',
   components: {
     Dropdown,
     Menubar,
     Button,
     Sidebar,
+    AuthGuard,
   },
   data() {
     return {
@@ -158,35 +194,53 @@ export default {
           label: 'Query',
           icon: 'pi pi-search',
           route: '/query',
+          requiresAuth: true,
         },
         {
           label: 'Visualizations',
           icon: 'pi pi-chart-bar',
           isOpen: false,
+          requiresAuth: true,
           subItems: [
+            // {
+            //   label: 'Histogram',
+            //   icon: 'pi pi-chart-bar',
+            //   route: '/visualizations',
+            // },
             {
-              label: 'Histogram',
+              label: 'Missing Alleles',
               icon: 'pi pi-chart-bar',
-              route: '/visualizations',
-            },
-            {
-              label: 'Comparative Analysis',
-              icon: 'pi pi-chart-line',
               route: '/visualizations-comparative',
             }
           ]
         },
         {
           label: 'Database Report',
-          icon: 'pi pi-chart-bar',
+          icon: 'pi pi-chart-line',
           route: '/report',
         },
         {
           label: 'Admin',
           icon: 'pi pi-cog',
-          route: '/system-administration',
-          // Only visible if the user is an admin
-          visible: this.isAdmin,
+          isOpen: false,
+          // Only visible if the user is an admin or private user (for User Management)
+          visible: this.isAdmin || this.canAccessPrivateData,
+          subItems: [
+            {
+              label: 'Data Upload',
+              icon: 'pi pi-upload',
+              route: '/data-upload',
+              // Only visible if the user is an admin
+              visible: this.isAdmin,
+            },
+            {
+              label: 'Admin Dashboard',
+              icon: 'pi pi-th-large',
+              route: '/admin',
+              // Visible to both admin and private users
+              visible: this.isAdmin || this.canAccessPrivateData,
+            }
+          ]
         },
       ],
       userMenuOptions: [],
@@ -195,30 +249,92 @@ export default {
     };
   },
   computed: {
-    ...mapGetters(['isAuthenticated', 'isAdmin', 'username']),
-    // Additional computed properties can be added here
+    ...mapGetters('auth', ['isAuthenticated', 'isAdmin', 'canAccessPrivateData']),
+    username() {
+      return this.$store.state.auth.user?.username || '';
+    }
   },
-  async created() {
-    await this.checkAuthStatus();
-    this.buildMenus();
+  created() {
+    // Check auth status when app starts
+    this.checkAndUpdateAuthStatus();
+    
     // Add event listener to handle window resize
     window.addEventListener('resize', this.handleResize);
+    
+    // Listen for URL changes to catch token parameters
+    window.addEventListener('popstate', this.checkForTokenInUrl);
+  },
+  mounted() {
+    // Double-check for token in URL on mount
+    this.checkForTokenInUrl();
   },
   beforeUnmount() {
-    // Clean up event listener
+    // Clean up event listeners
     window.removeEventListener('resize', this.handleResize);
+    window.removeEventListener('popstate', this.checkForTokenInUrl);
   },
   watch: {
-    isAuthenticated: 'buildMenus',
-    isAdmin: 'buildMenus',
+    isAuthenticated(newVal) {
+      console.log('Authentication state changed:', newVal);
+      this.buildMenus();
+    },
+    isAdmin(newVal) {
+      console.log('Admin state changed:', newVal);
+      this.buildMenus();
+    },
   },
   methods: {
-    ...mapActions(['checkAuthStatus', 'logout']),
+    ...mapActions('auth', ['logout', 'checkAuthStatus']),
+    
+    async checkAndUpdateAuthStatus() {
+      try {
+        await this.checkAuthStatus();
+        console.log('Auth status checked, isAuthenticated:', this.isAuthenticated);
+        this.buildMenus();
+      } catch (error) {
+        console.error('Error checking auth status:', error);
+      }
+    },
+    
+    checkForTokenInUrl() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const token = urlParams.get('token');
+      
+      if (token) {
+        console.log('Token found in URL during navigation');
+        localStorage.setItem('access_token', token);
+        
+        // Clean up the URL
+        const cleanUrl = window.location.pathname;
+        window.history.replaceState({}, document.title, cleanUrl);
+        
+        // Update auth status
+        this.checkAndUpdateAuthStatus();
+      }
+    },
+    
     buildMenus() {
-      // Update visibility based on admin status
+      // Update visibility based on authentication and admin status
       this.sidebarItems.forEach((item) => {
-        if (item.visible !== undefined) {
-          item.visible = item.visible && this.isAdmin;
+        // Handle admin-only items
+        if (item.label === 'Admin') {
+          item.visible = this.isAdmin || this.canAccessPrivateData;
+          
+          // Handle submenu items visibility
+          if (item.subItems) {
+            item.subItems.forEach(subItem => {
+              if (subItem.label === 'System Administration' || subItem.label === 'Admin Dashboard') {
+                subItem.visible = this.isAdmin;
+              } else if (subItem.label === 'User Management') {
+                subItem.visible = this.isAdmin || this.canAccessPrivateData;
+              }
+            });
+          }
+        }
+        
+        // Handle auth-required items
+        if (item.requiresAuth) {
+          item.visible = this.isAuthenticated;
         }
       });
 
@@ -242,23 +358,64 @@ export default {
       } else if (action === 'logout') {
         this.handleLogout();
       }
+      // Reset dropdown to prevent it from staying selected
+      event.value = null;
     },
     handleLogin() {
-      window.location.href = 'https://myfastapiapp.loca.lt/auth/login';
+      try {
+        window.location.href = `${axios.defaults.baseURL}/auth/login`;
+      } catch (error) {
+        console.error('Login redirect error:', error);
+        // Fallback for cases where baseURL might not be set
+        window.location.href = '/auth/login';
+      }
     },
     async handleLogout() {
-      await this.logout();
-      this.$router.push('/');
+      try {
+        await this.logout();
+        // Show success message if toast is available
+        if (this.$toast) {
+          this.$toast.add({
+            severity: 'success',
+            summary: 'Logged Out',
+            detail: 'You have been successfully logged out.',
+            life: 3000
+          });
+        }
+        this.$router.push('/');
+      } catch (error) {
+        console.error('Logout error:', error);
+        // Show error message if toast is available
+        if (this.$toast) {
+          this.$toast.add({
+            severity: 'error',
+            summary: 'Logout Error',
+            detail: 'There was an issue logging you out. Please try again.',
+            life: 5000
+          });
+        }
+      }
     },
     toggleSidebar() {
       this.isSidebarVisible = !this.isSidebarVisible;
     },
-    toggleSubMenu(index) {
+    toggleSubMenu(index, event) {
+      // Prevent default behavior for keyboard events
+      if (event && event.type === 'keydown') {
+        event.preventDefault();
+      }
       this.sidebarItems[index].isOpen = !this.sidebarItems[index].isOpen;
     },
     navigate(route) {
       this.$router.push(route);
       this.isSidebarVisible = false; // Close the sidebar after navigation
+    },
+    navigateToHome(event) {
+      // Prevent default behavior for keyboard events
+      if (event && event.type === 'keydown') {
+        event.preventDefault();
+      }
+      this.$router.push('/');
     },
     handleResize() {
       const wasMobile = this.isMobile;
@@ -278,10 +435,6 @@ export default {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  transform: scale(0.8);
-  transform-origin: top left;
-  width: calc(100% / 0.8);
-  height: calc(100% / 0.8);
 }
 
 /* Menubar styling */
@@ -299,6 +452,61 @@ export default {
   object-fit: contain;
   border-radius: 8px;
   border: 2px solid #ffffff;
+}
+
+/* Logo container styling for clickable behavior */
+.logo-container {
+  cursor: pointer;
+  border-radius: 8px;
+  padding: 4px;
+  transition: all 0.2s ease-in-out;
+  outline: none;
+}
+
+.logo-container:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  transform: scale(1.05);
+}
+
+.logo-container:focus {
+  background-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.5);
+}
+
+.logo-container:active {
+  transform: scale(0.98);
+}
+
+/* Navigation link accessibility styles */
+.navigation-link:focus,
+.submenu-toggle:focus,
+.logout-button:focus {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+/* Improved hover states */
+.navigation-link:hover,
+.submenu-toggle:hover,
+.logout-button:hover {
+  background-color: #e5e7eb !important;
+  transition: background-color 0.2s ease;
+}
+
+/* Active states for better feedback */
+.navigation-link:active,
+.submenu-toggle:active,
+.logout-button:active {
+  background-color: #d1d5db !important;
+  transform: translateY(1px);
+}
+
+/* Ensure icons don't interfere with focus */
+.navigation-link i,
+.submenu-toggle i,
+.logout-button i {
+  pointer-events: none;
 }
 
 /* User Dropdown Styling */
@@ -366,7 +574,27 @@ export default {
 
   /* Menubar logo smaller on mobile */
   .menubar-logo {
-    height: 50px;
+    height: 40px;
+  }
+
+  /* User dropdown adjustments for mobile */
+  .user-dropdown {
+    min-width: 120px;
+    font-size: 0.9rem;
+  }
+
+  /* Sidebar adjustments for mobile */
+  .sidebar-custom {
+    width: 280px;
+  }
+
+  /* Logo container adjustments for mobile */
+  .logo-container {
+    padding: 2px;
+  }
+
+  .logo-container:hover {
+    transform: scale(1.02);
   }
 }
 

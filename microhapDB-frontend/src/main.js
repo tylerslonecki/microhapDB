@@ -28,6 +28,9 @@ import 'primeicons/primeicons.css';
 // PrimeFlex
 import 'primeflex/primeflex.css'; // Import PrimeFlex
 
+// Import axios config to ensure it's loaded before any API calls
+import './axiosConfig';
+
 const app = createApp(App);
 app.use(PrimeVue);
 app.use(router);

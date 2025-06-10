@@ -6,8 +6,8 @@ from typing import Optional, List, Dict
 from datetime import datetime
 
 from sqlalchemy.orm import sessionmaker
-from src.models import Base, Sequence, Accession, AllelePresence, DatabaseVersion, Program, Source, \
-    SequencePresence, program_source_association
+from src.models import Base, Sequence, Accession, AllelePresence, DatabaseVersion, Program, Project, \
+    SequencePresence, program_project_association, FileUpload
 from src.database import get_session, init_db  # Import the centralized functions and objects
 
 
@@ -62,19 +62,19 @@ class AccessionDetailResponse(BaseModel):
     alleleid: str
     accession: str
     programs: List[str] = []
-    sources: List[str] = []
+    projects: List[str] = []
 
 
-class SourceBase(BaseModel):
-    name: str = Field(..., example="Source Name")
-    description: Optional[str] = Field(None, example="Description of the source")
+class ProjectBase(BaseModel):
+    name: str = Field(..., example="Project Name")
+    description: Optional[str] = Field(None, example="Description of the project")
 
 
-class SourceCreate(SourceBase):
+class ProjectCreate(ProjectBase):
     pass
 
 
-class SourceResponse(SourceBase):
+class ProjectResponse(ProjectBase):
     id: int
     created_at: datetime
 
@@ -94,7 +94,7 @@ class ProgramResponse(BaseModel):
 class ProgramCreate(BaseModel):
     name: str = Field(..., example="Program Name")
     description: Optional[str] = Field(None, example="Description of the program")
-    source_ids: Optional[List[int]] = Field(None, example=[1, 2])  # To associate sources upon creation
+    project_ids: Optional[List[int]] = Field(None, example=[1, 2])  # To associate projects upon creation
 
 
 class SupplementalJobStatusResponse(BaseModel):
@@ -110,6 +110,20 @@ class SupplementalJobStatusResponse(BaseModel):
         orm_mode = True
 
 
+class FileUploadResponse(BaseModel):
+    """Response model for file upload information"""
+    id: int
+    file_name: str
+    upload_type: str
+    file_size: Optional[int] = None
+    upload_date: datetime
+    version: int
+    species: str
+    program_name: str
+    project_name: Optional[str] = None
+    uploaded_by: Optional[str] = None
+
+
 class VersionStatsResponse(BaseModel):
     """Response model for version statistics"""
     version: int
@@ -120,6 +134,7 @@ class VersionStatsResponse(BaseModel):
     program_name: str
     description: Optional[str] = None
     uploaded_by: Optional[str] = None
+    files: Optional[List[FileUploadResponse]] = None  # Add file information
 
 # # Create an asynchronous engine
 # engine = create_async_engine(DATABASE_URL, echo=True)

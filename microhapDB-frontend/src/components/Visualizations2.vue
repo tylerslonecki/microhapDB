@@ -16,7 +16,7 @@
           />
         </div>
         <div class="control-item">
-          <label for="chromosomeDropdown" class="control-label">Chromosome.</label>
+          <label for="chromosomeDropdown" class="control-label">Chromosome:</label>
           <Dropdown
             id="chromosomeDropdown"
             v-model="selectedChromosome"
@@ -164,7 +164,7 @@
     <Dialog 
       v-model:visible="missingAllelesDialogVisible" 
       :header="`Missing Alleles for Locus: ${selectedMissingAlleles.length > 0 ? selectedMissingAlleles[0].locus : ''}`"
-      :style="{ width: '50vw' }"
+      :style="{ width: '70vw' }"
       :modal="true"
     >
       <div class="missing-alleles-container">
@@ -172,23 +172,93 @@
           :value="selectedMissingAlleles" 
           :paginator="true" 
           :rows="10"
+          :expandedRows="expandedRows"
           class="p-datatable-sm"
+          v-model:expandedRows="expandedRows"
+          dataKey="alleleId"
+          @rowExpand="onRowExpand"
+          @rowCollapse="onRowCollapse"
         >
-          <Column field="locus" header="Locus" style="min-width: 150px; word-break: break-word;"></Column>
-          <Column field="allele" header="Allele ID" style="min-width: 250px; word-break: break-word;"></Column>
+          <Column header="Allele ID" style="min-width: 250px; word-break: break-word;">
+            <template #body="slotProps">
+              {{ slotProps.data.alleleId }}
+            </template>
+          </Column>
+          <Column header="Actions" style="min-width: 120px;">
+            <template #body="slotProps">
+              <Button 
+                icon="pi pi-plus" 
+                label="Add to Query"
+                class="p-button-success p-button-sm" 
+                @click="addToQueryList(slotProps.data)"
+                :disabled="isAlreadyInQueryList(slotProps.data.alleleId)"
+              />
+            </template>
+          </Column>
+          <Column :expander="true" header="Accessions" headerStyle="width: 100px; text-align: center;" bodyStyle="text-align: center;" />
+          <template #expansion="slotProps">
+            <div class="p-3">
+              <h5>Accessions for {{ slotProps.data.alleleId }}</h5>
+              <div v-if="loadingAccessions[slotProps.data.alleleId]" class="loading-indicator">
+                <i class="pi pi-spin pi-spinner"></i>
+                <span>Loading accessions...</span>
+              </div>
+              <div v-else-if="alleleAccessions[slotProps.data.alleleId] && alleleAccessions[slotProps.data.alleleId].length > 0">
+                <div class="accession-grid">
+                  <div 
+                    v-for="accession in alleleAccessions[slotProps.data.alleleId]" 
+                    :key="accession.accession"
+                    class="accession-item"
+                  >
+                    <div class="accession-name">{{ accession.accession }}</div>
+                    <div class="accession-details">
+                      <span v-if="accession.programs.length > 0" class="program-tag">
+                        {{ accession.programs.join(', ') }}
+                      </span>
+                      <span v-if="accession.projects.length > 0" class="project-tag">
+                        {{ accession.projects.join(', ') }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div v-else>
+                <p>No accessions found for this allele.</p>
+              </div>
+            </div>
+          </template>
         </DataTable>
       </div>
       <template #footer>
         <Button label="Close" icon="pi pi-times" @click="missingAllelesDialogVisible = false" class="p-button-text" />
         <Button label="Export List" icon="pi pi-download" @click="exportMissingAlleles" />
+        <Button 
+          label="Add All to Query List" 
+          icon="pi pi-plus-circle" 
+          @click="addAllToQueryList" 
+          class="p-button-success"
+          :disabled="selectedMissingAlleles.length === 0"
+        />
+        <Button 
+          label="Go to Query" 
+          icon="pi pi-arrow-right" 
+          @click="navigateToQuery" 
+          class="p-button-info"
+        />
       </template>
     </Dialog>
+    
+    <!-- Toast for notifications -->
+    <Toast />
   </div>
 </template>
 
 <script setup>
 /* eslint-disable */
 import { ref, onMounted, computed, watch, onUnmounted, nextTick } from 'vue';
+import { useStore } from 'vuex';
+import { useToast } from 'primevue/usetoast';
+import { useRouter } from 'vue-router';
 import axiosInstance from '../axiosConfig';
 
 // Import PrimeVue components
@@ -199,18 +269,21 @@ import DataTable from 'primevue/datatable';
 import Column from 'primevue/column';
 import Dialog from 'primevue/dialog';
 import Tooltip from 'primevue/tooltip';
+import Toast from 'primevue/toast';
 
 // Register directives
 const vTooltip = Tooltip;
 
 import * as d3 from 'd3';
+import { SUPPORTED_SPECIES } from '../utils/speciesConfig';
+
+// Initialize store and toast
+const store = useStore();
+const toast = useToast();
+const router = useRouter();
 
 // Reactive species options with consistent structure
-const speciesOptions = ref([
-  { label: 'Alfalfa', value: 'alfalfa' },
-  { label: 'Sweetpotato', value: 'sweetpotato' },
-  { label: 'Cranberry', value: 'cranberry' }
-]);
+const speciesOptions = ref(SUPPORTED_SPECIES);
 
 // Reactive variables
 const selectedSpecies = ref('');
@@ -226,6 +299,11 @@ const missingAllelesDialogVisible = ref(false);
 const selectedLocus = ref('');
 const selectedMissingAlleles = ref([]);
 const loadedChromosomeType = ref(''); // Track the chromosome type that was actually loaded
+
+// New reactive variables for the enhanced modal functionality
+const expandedRows = ref([]);
+const alleleAccessions = ref({});
+const loadingAccessions = ref({});
 
 // Add more reactive references for the D3 visualization
 const d3Container = ref(null);
@@ -258,6 +336,43 @@ watch(comparativeData, (newData) => {
       updateCharts();
     });
   }
+}, { deep: true });
+
+// Watch for row expansions to fetch accessions automatically
+watch(expandedRows, (newExpandedRows, oldExpandedRows) => {
+  console.log("🔄 expandedRows watcher triggered:", {
+    newExpandedRows,
+    oldExpandedRows,
+    newLength: newExpandedRows?.length || 0,
+    oldLength: oldExpandedRows?.length || 0
+  });
+  
+  // Ensure both values are arrays before processing
+  const newRows = Array.isArray(newExpandedRows) ? newExpandedRows : [];
+  const oldRows = Array.isArray(oldExpandedRows) ? oldExpandedRows : [];
+  
+  console.log("🔄 Processed rows:", {
+    newRowsLength: newRows.length,
+    oldRowsLength: oldRows.length,
+    newRowsData: newRows,
+    oldRowsData: oldRows
+  });
+  
+  // Find newly expanded rows
+  const newlyExpanded = newRows.filter(newRow => 
+    !oldRows.some(oldRow => oldRow.alleleId === newRow.alleleId)
+  );
+  
+  console.log("🔄 Newly expanded rows:", {
+    count: newlyExpanded.length,
+    rows: newlyExpanded
+  });
+  
+  // Fetch accessions for newly expanded rows
+  newlyExpanded.forEach(row => {
+    console.log(`🔄 Fetching accessions for row:`, row, `Using AlleleID: ${row.alleleId}`);
+    fetchAccessionsForAllele(row.alleleId);
+  });
 }, { deep: true });
 
 async function onSpeciesChange() {
@@ -1401,9 +1516,54 @@ function showMissingAlleles(data) {
   selectedLocus.value = data.locus;
   // Store the formatted locus for display
   const formattedLocus = `${selectedChromosome.value}.${data.locus.split('|')[0]}`;
-  selectedMissingAlleles.value = Array.isArray(data.missing_alleles) 
-    ? data.missing_alleles.map(allele => ({ allele, locus: formattedLocus }))
-    : [];
+  
+  console.log("Raw data analysis:", {
+    originalLocus: data.locus,
+    selectedChromosome: selectedChromosome.value,
+    rawMissingAllelesFirst3: data.missing_alleles?.slice(0, 3),
+    missingAllelesTypes: data.missing_alleles?.slice(0, 3).map(a => typeof a),
+    missingAllelesFormats: data.missing_alleles?.slice(0, 3).map(a => ({
+      value: a,
+      containsPipe: String(a).includes('|'),
+      containsDot: String(a).includes('.'),
+      parts: String(a).split('|')
+    }))
+  });
+  
+  // Check if missing_alleles already contains full AlleleIDs or just the unique parts
+  const firstMissingAllele = data.missing_alleles?.[0];
+  const alreadyFullFormat = firstMissingAllele && String(firstMissingAllele).includes('|');
+  
+  console.log("AlleleID format detection:", {
+    firstMissingAllele,
+    alreadyFullFormat,
+    shouldConstructFull: !alreadyFullFormat
+  });
+  
+  if (alreadyFullFormat) {
+    // Missing alleles are already in full format
+    selectedMissingAlleles.value = Array.isArray(data.missing_alleles) 
+      ? data.missing_alleles.map(alleleId => ({ 
+          alleleId: String(alleleId), // Use the complete format as alleleId
+          locus: formattedLocus 
+        }))
+      : [];
+  } else {
+    // Missing alleles are just unique identifiers, need to construct full format
+    const locusBase = data.locus.split('|')[0]; // Get the locus part before the pipe
+    selectedMissingAlleles.value = Array.isArray(data.missing_alleles) 
+      ? data.missing_alleles.map(alleleIdPart => ({ 
+          alleleId: `${selectedChromosome.value}.${locusBase}|${alleleIdPart}`, // Construct full AlleleID
+          locus: formattedLocus 
+        }))
+      : [];
+  }
+    
+  console.log("Final processed missing alleles:", {
+    count: selectedMissingAlleles.value.length,
+    first3: selectedMissingAlleles.value.slice(0, 3),
+    sampleAlleleIds: selectedMissingAlleles.value.slice(0, 3).map(item => item.alleleId)
+  });
     
   missingAllelesDialogVisible.value = true;
 }
@@ -1494,6 +1654,243 @@ onUnmounted(() => {
   // Clean up chart when component is destroyed
   resetChart();
 });
+
+// New methods for enhanced modal functionality
+async function fetchAccessionsForAllele(alleleId) {
+  if (alleleAccessions.value[alleleId]) {
+    console.log(`Accessions already cached for ${alleleId}:`, alleleAccessions.value[alleleId]);
+    return; // Already fetched
+  }
+  
+  loadingAccessions.value[alleleId] = true;
+  console.log(`🔍 STARTING ACCESSIONS FETCH for: ${alleleId}`);
+  
+  try {
+    console.log(`Fetching accessions for allele: ${alleleId}, species: ${selectedSpecies.value}`);
+    
+    // Test with a simple case first - let's see what the format should be
+    console.log("AlleleID format analysis:", {
+      original: alleleId,
+      length: alleleId.length,
+      containsPipe: alleleId.includes('|'),
+      containsDot: alleleId.includes('.'),
+      parts: alleleId.split('|'),
+      dotParts: alleleId.split('.')
+    });
+    
+    console.log(`📤 Making API call to /posts/alleleAccessions/ with payload:`, {
+      alleleid: [alleleId]
+    });
+    
+    const response = await axiosInstance.post('/posts/alleleAccessions/', {
+      alleleid: [alleleId]
+    });
+    
+    console.log(`📥 API Response for ${alleleId}:`, {
+      status: response.status,
+      statusText: response.statusText,
+      data: response.data,
+      dataLength: response.data?.length || 0
+    });
+    
+    alleleAccessions.value[alleleId] = response.data || [];
+    
+    if (response.data && response.data.length === 0) {
+      console.warn(`⚠️ No accessions found for allele ${alleleId}. This might indicate a species mismatch or missing data.`);
+      
+      // Let's try to fetch a sample of working AlleleIDs from the Query section to compare
+      try {
+        console.log("🧪 Testing with a sample query to compare AlleleID formats...");
+        const testResponse = await axiosInstance.post('/posts/alleleDetails', {
+          species: selectedSpecies.value,
+          page: 1,
+          size: 5
+        });
+        
+        if (testResponse.data && testResponse.data.items && testResponse.data.items.length > 0) {
+          console.log("✅ Sample working AlleleIDs from Query section:", 
+            testResponse.data.items.map(item => ({
+              alleleid: item.alleleid,
+              species: item.species
+            }))
+          );
+          
+          // Test with the first working AlleleID to see if our API call works
+          const workingAlleleId = testResponse.data.items[0].alleleid;
+          console.log(`🧪 Testing API with known working AlleleID: ${workingAlleleId}`);
+          
+          const testAccessionsResponse = await axiosInstance.post('/posts/alleleAccessions/', {
+            alleleid: [workingAlleleId]
+          });
+          
+          console.log(`🧪 Test response for working AlleleID ${workingAlleleId}:`, {
+            status: testAccessionsResponse.status,
+            data: testAccessionsResponse.data,
+            dataLength: testAccessionsResponse.data?.length || 0
+          });
+        }
+      } catch (testError) {
+        console.error("❌ Error in test query:", testError);
+      }
+    } else {
+      console.log(`✅ Successfully fetched ${response.data?.length || 0} accessions for ${alleleId}`);
+    }
+  } catch (error) {
+    console.error(`❌ Error fetching accessions for allele ${alleleId}:`, error);
+    console.error("Error details:", {
+      message: error.message,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data
+    });
+    alleleAccessions.value[alleleId] = [];
+    toast.add({
+      severity: 'error',
+      summary: 'Error',
+      detail: `Failed to fetch accessions for allele ${alleleId}. Please try again.`,
+      life: 5000
+    });
+  } finally {
+    loadingAccessions.value[alleleId] = false;
+    console.log(`🏁 FINISHED ACCESSIONS FETCH for: ${alleleId}`);
+  }
+}
+
+function toggleAccessions(rowData) {
+  const alleleId = rowData.allele;
+  const isExpanded = expandedRows.value.find(row => row.allele === alleleId);
+  
+  if (!isExpanded) {
+    // Expanding - fetch accessions if not already fetched
+    fetchAccessionsForAllele(alleleId);
+  }
+}
+
+function addToQueryList(rowData) {
+  const alleleId = rowData.alleleId;
+  
+  if (isAlreadyInQueryList(alleleId)) {
+    toast.add({
+      severity: 'warn',
+      summary: 'Already Added',
+      detail: 'This allele is already in your query list.',
+      life: 3000
+    });
+    return;
+  }
+  
+  // Create a sequence object to add to the store
+  // We need to also get the sequence data, so let's make an API call
+  fetchSequenceAndAddToQueryList(alleleId);
+}
+
+async function fetchSequenceAndAddToQueryList(alleleId) {
+  try {
+    // Use the alleleDetails endpoint to get full sequence information
+    const response = await axiosInstance.post('/posts/alleleDetails', {
+      species: selectedSpecies.value,
+      globalFilter: alleleId,
+      page: 1,
+      size: 1
+    });
+    
+    if (response.data && response.data.items && response.data.items.length > 0) {
+      const sequence = response.data.items[0];
+      
+      // Update the query state species to match the current visualization species
+      // This ensures the Query component shows the correct species
+      store.commit('setQueryState', { species: selectedSpecies.value });
+      
+      store.commit('setSelectedSequences', [...store.state.selectedSequences, sequence]);
+      toast.add({
+        severity: 'success',
+        summary: 'Added to Query List',
+        detail: `Added ${alleleId} to query list successfully! Species set to ${selectedSpecies.value}.`,
+        life: 3000
+      });
+    } else {
+      toast.add({
+        severity: 'warn',
+        summary: 'Not Found',
+        detail: `Could not find sequence data for ${alleleId}.`,
+        life: 3000
+      });
+    }
+  } catch (error) {
+    console.error(`Error fetching sequence for ${alleleId}:`, error);
+    toast.add({
+      severity: 'error',
+      summary: 'Error',
+      detail: `Failed to add ${alleleId} to query list. Please try again.`,
+      life: 5000
+    });
+  }
+}
+
+function isAlreadyInQueryList(alleleId) {
+  return store.state.selectedSequences.some(seq => seq.alleleid === alleleId);
+}
+
+function addAllToQueryList() {
+  if (selectedMissingAlleles.value.length === 0) {
+    toast.add({
+      severity: 'warn',
+      summary: 'No Data',
+      detail: 'No alleles to add to query list.',
+      life: 3000
+    });
+    return;
+  }
+  
+  // Filter out alleles that are already in the query list
+  const allelesNotInQuery = selectedMissingAlleles.value.filter(item => {
+    return !isAlreadyInQueryList(item.alleleId);
+  });
+  
+  if (allelesNotInQuery.length === 0) {
+    toast.add({
+      severity: 'info',
+      summary: 'Already Added',
+      detail: 'All alleles are already in your query list.',
+      life: 3000
+    });
+    return;
+  }
+  
+  // Add each allele that's not already in the query list
+  allelesNotInQuery.forEach(item => {
+    fetchSequenceAndAddToQueryList(item.alleleId);
+  });
+  
+  toast.add({
+    severity: 'info',
+    summary: 'Adding to Query List',
+    detail: `Adding ${allelesNotInQuery.length} allele(s) to query list...`,
+    life: 3000
+  });
+}
+
+function onRowExpand(event) {
+  console.log("🔽 Row expanded event:", event.data);
+  console.log(`🔽 Fetching accessions for expanded row with AlleleID: ${event.data.alleleId}`);
+  fetchAccessionsForAllele(event.data.alleleId);
+}
+
+function onRowCollapse(event) {
+  console.log("🔼 Row collapsed event:", event.data);
+}
+
+function navigateToQuery() {
+  // Navigate to the Query component using the router
+  router.push({ name: 'Query' });
+  
+  toast.add({
+    severity: 'info',
+    summary: 'Navigation',
+    detail: 'Navigating to Query page...',
+    life: 2000
+  });
+}
 </script>
 
 <style scoped>
@@ -1907,6 +2304,14 @@ onUnmounted(() => {
   .chart-wrapper {
     height: 500px;
   }
+  
+  .missing-alleles-container {
+    overflow-x: auto;
+  }
+  
+  .accession-grid {
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  }
 }
 
 /* Color scale legend styles */
@@ -1919,5 +2324,52 @@ onUnmounted(() => {
 :deep(.legend-axis text) {
   font-size: 10px;
   fill: #666;
+}
+
+.missing-alleles-container {
+  min-height: 300px;
+}
+
+.accession-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 0.3rem;
+  margin-top: 0.3rem;
+}
+
+.accession-item {
+  padding: 0.3rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  background-color: #f9fafb;
+}
+
+.accession-name {
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 0.0625rem;
+  font-size: 0.875rem;
+}
+
+.accession-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.0625rem;
+}
+
+.program-tag, .project-tag {
+  font-size: 0.6875rem;
+  padding: 0.0625rem 0.375rem;
+  border-radius: 10px;
+  background-color: #dbeafe;
+  color: #1e40af;
+  display: inline-block;
+  width: fit-content;
+  line-height: 1.2;
+}
+
+.project-tag {
+  background-color: #ecfdf5;
+  color: #065f46;
 }
 </style>

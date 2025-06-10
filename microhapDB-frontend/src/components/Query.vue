@@ -14,7 +14,6 @@
               optionLabel="label"
               optionValue="value"
               placeholder="Select Species"
-              @change="handleSpeciesChange" 
               class="w-60"
             />
           </div>
@@ -33,9 +32,9 @@
         </div>
       </div>
 
-      <!-- External Filters Panel (Card) -->
-      <Card class="mb-3">
-        <div class="flex items-center gap-4 p-4">
+      <!-- External Filters Panel -->
+      <div class="mb-3 p-4 bg-white border border-gray-200 rounded-lg shadow-sm">
+        <div class="flex items-center gap-4">
           <!-- Filters Label -->
           <div class="font-bold whitespace-nowrap">Filters</div>
           
@@ -63,7 +62,7 @@
             />
           </div>
         </div>
-      </Card>
+      </div>
 
       <!-- DataTable with optimized loading -->
       <div class="datatable-wrapper relative">
@@ -130,6 +129,9 @@
         </DataTable>
       </div>
     </Panel>
+    
+    <!-- Confirmation Dialog for Species Changes -->
+    <ConfirmDialog />
   </div>
 </template>
 
@@ -141,8 +143,10 @@ import Dropdown from 'primevue/dropdown';
 import InputText from 'primevue/inputtext';
 import Button from 'primevue/button';
 import Panel from 'primevue/panel';
+import ConfirmDialog from 'primevue/confirmdialog';
 import Tooltip from 'primevue/tooltip';
 import { mapActions, mapGetters } from 'vuex';
+import { SUPPORTED_SPECIES } from '../utils/speciesConfig';
 
 export default {
   name: 'Query',
@@ -152,7 +156,8 @@ export default {
     Dropdown,
     InputText,
     Button,
-    Panel
+    Panel,
+    ConfirmDialog
   },
   directives: {
     tooltip: Tooltip
@@ -205,22 +210,53 @@ export default {
   },
   data() {
     return {
-      speciesOptions: [
-        { label: 'Sweetpotato', value: 'sweetpotato' },
-        { label: 'Blueberry', value: 'blueberry' },
-        { label: 'Alfalfa', value: 'alfalfa' },
-        { label: 'Cranberry', value: 'cranberry' }
-      ],
+      speciesOptions: SUPPORTED_SPECIES,
       loading: false,
       loadingNewData: false,
       cachedData: [],
-      debounceTimer: null
+      debounceTimer: null,
+      previousSpecies: '', // Track previous species for confirmation logic
+      isReverting: false // Flag to prevent infinite loops during revert
     };
   },
   watch: {
     species(newVal, oldVal) {
       if (newVal !== oldVal) {
+        // Skip confirmation if we're in the middle of a revert operation
+        if (this.isReverting) {
+          this.isReverting = false;
+          return;
+        }
+        
+        // Check if there are selected sequences and we need confirmation
+        if (this.selectedSequences.length > 0 && oldVal !== '') {
+          // Use PrimeVue's confirmation dialog for better UX
+          this.$confirm.require({
+            message: `You have ${this.selectedSequences.length} allele(s) in your query list. Changing species will clear your current query list. Do you want to continue?`,
+            header: 'Species Change Confirmation',
+            icon: 'pi pi-exclamation-triangle',
+            rejectClass: 'p-button-secondary p-button-outlined',
+            rejectLabel: 'Cancel',
+            acceptLabel: 'Continue',
+            accept: () => {
+              // User confirmed - proceed with species change
+              this.resetSelection();
+              this.clearFilters();
+              this.updateQueryState({ page: 1 });
+              this.fetchSequences();
+            },
+            reject: () => {
+              // User cancelled - revert the species change
+              this.isReverting = true;
+              this.updateQueryState({ species: oldVal });
+            }
+          });
+          return; // Don't proceed with automatic change
+        }
+        
+        // Proceed with species change (only if no confirmation needed)
         this.resetSelection();
+        this.clearFilters();
         this.updateQueryState({ page: 1 });
         this.fetchSequences();
       }
@@ -229,7 +265,6 @@ export default {
       handler() {
         if (this.debounceTimer) clearTimeout(this.debounceTimer);
         this.debounceTimer = setTimeout(() => {
-          this.resetSelection();
           this.fetchSequences();
         }, 300);
       },
@@ -309,13 +344,7 @@ export default {
       // Cache current data before applying filter
       this.cachedData = [...this.sequences];
       
-      this.resetSelection();
       this.updateQueryState({ filters: event.filters, page: 1 });
-    },
-    handleSpeciesChange() {
-      // Clear cache when species changes
-      this.cachedData = [];
-      this.resetAndFetch();
     },
     refreshTable() {
       // Cache current data before refreshing
@@ -365,6 +394,16 @@ export default {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+    },
+    clearFilters() {
+      this.updateQueryState({
+        filters: {
+          alleleid: { value: null, matchMode: 'contains' },
+          info: { value: null, matchMode: 'contains' },
+          associated_trait: { value: null, matchMode: 'contains' },
+          allelesequence: { value: null, matchMode: 'contains' }
+        }
+      });
     }
   },
   mounted() {
