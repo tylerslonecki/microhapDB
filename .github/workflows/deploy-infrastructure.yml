@@ -172,6 +172,7 @@ jobs:
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
+
       - name: 🔑 Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
