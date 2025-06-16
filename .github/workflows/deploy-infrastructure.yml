@@ -1,22 +1,21 @@
-name: Deploy Frontend with Terraform
+name: Deploy Infrastructure (Terraform)
 
 on:
   push:
     branches: [ main ]
     paths:
-      - 'microhapDB-frontend/**'
-      - '.github/workflows/deploy-frontend-terraform.yml'
+      - 'microhapDB-frontend/terraform/**'
+      - '.github/workflows/deploy-infrastructure.yml'
   pull_request:
     branches: [ main ]
     paths:
-      - 'microhapDB-frontend/**'
-      - '.github/workflows/deploy-frontend-terraform.yml'
+      - 'microhapDB-frontend/terraform/**'
+      - '.github/workflows/deploy-infrastructure.yml'
   workflow_dispatch:
 
 env:
   TF_VERSION: '1.6.0'
-  NODE_VERSION: '18'
-  AWS_REGION: 'us-east-2'
+  AWS_REGION: 'us-east-1'
 
 jobs:
   terraform-plan:
@@ -66,7 +65,7 @@ jobs:
             try {
               const plan = execSync('cd microhapDB-frontend/terraform && terraform show -no-color tfplan', { encoding: 'utf8' });
               
-              const comment = `## 🏗️ Terraform Plan
+              const comment = `## 🏗️ Terraform Infrastructure Plan
               
               <details>
               <summary>Click to expand plan</summary>
@@ -87,13 +86,13 @@ jobs:
               console.error('Error creating comment:', error);
             }
 
-  terraform-apply-and-deploy:
-    name: 🚀 Deploy Infrastructure & Frontend
+  terraform-apply:
+    name: 🚀 Deploy Infrastructure
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     defaults:
       run:
-        working-directory: microhapDB-frontend
+        working-directory: microhapDB-frontend/terraform
     
     outputs:
       s3-bucket: ${{ steps.terraform-output.outputs.s3_bucket_name }}
@@ -110,13 +109,6 @@ jobs:
           terraform_version: ${{ env.TF_VERSION }}
           terraform_wrapper: false
 
-      - name: 🔧 Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: microhapDB-frontend/package-lock.json
-
       - name: 🔑 Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -124,99 +116,49 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # Terraform Infrastructure Management
       - name: 🚀 Terraform Init
-        working-directory: microhapDB-frontend/terraform
         run: terraform init
 
       - name: 🔍 Terraform Validate
-        working-directory: microhapDB-frontend/terraform
         run: terraform validate
 
       - name: 🏗️ Terraform Apply
-        working-directory: microhapDB-frontend/terraform
         run: |
           terraform apply -auto-approve \
             -var="backend_url=${{ secrets.VUE_APP_BACKEND_URL }}"
 
       - name: 📤 Get Terraform Outputs
         id: terraform-output
-        working-directory: microhapDB-frontend/terraform
         run: |
           echo "s3_bucket_name=$(terraform output -raw s3_bucket_name)" >> $GITHUB_OUTPUT
           echo "cloudfront_distribution_id=$(terraform output -raw cloudfront_distribution_id)" >> $GITHUB_OUTPUT
           echo "website_url=$(terraform output -raw website_url)" >> $GITHUB_OUTPUT
           echo "cloudfront_domain=$(terraform output -raw cloudfront_domain_name)" >> $GITHUB_OUTPUT
 
-      # Frontend Build and Deploy
-      - name: 📦 Install Dependencies
-        run: npm ci
-
-      - name: 🏗️ Build Frontend
+      - name: 📊 Infrastructure Summary
         run: |
-          npm run build
-        env:
-          VUE_APP_BACKEND_URL: ${{ secrets.VUE_APP_BACKEND_URL }}
-          VUE_APP_ORCID_CLIENT_ID: ${{ secrets.VUE_APP_ORCID_CLIENT_ID }}
-
-      - name: 📤 Deploy to S3
-        run: |
-          aws s3 sync dist/ s3://${{ steps.terraform-output.outputs.s3_bucket_name }}/ \
-            --delete \
-            --cache-control "public, max-age=31536000" \
-            --exclude "*.html" \
-            --exclude "service-worker.js"
-          
-          # Upload HTML files with shorter cache
-          aws s3 sync dist/ s3://${{ steps.terraform-output.outputs.s3_bucket_name }}/ \
-            --delete \
-            --cache-control "public, max-age=0, must-revalidate" \
-            --include "*.html" \
-            --include "service-worker.js"
-
-      - name: 🔄 Invalidate CloudFront
-        run: |
-          aws cloudfront create-invalidation \
-            --distribution-id ${{ steps.terraform-output.outputs.cloudfront_distribution_id }} \
-            --paths "/*"
-
-      - name: 🧪 Test Deployment
-        run: |
-          echo "🌐 Website URL: ${{ steps.terraform-output.outputs.website_url }}"
-          
-          # Wait for CloudFront to propagate
-          echo "⏳ Waiting for CloudFront propagation..."
-          sleep 30
-          
-          # Test the website
-          response=$(curl -s -o /dev/null -w "%{http_code}" ${{ steps.terraform-output.outputs.website_url }})
-          if [ $response -eq 200 ]; then
-            echo "✅ Website is accessible!"
-          else
-            echo "❌ Website returned HTTP $response"
-            exit 1
-          fi
-
-      - name: 📊 Deployment Summary
-        run: |
-          echo "## 🎉 Frontend Deployment Successful!" >> $GITHUB_STEP_SUMMARY
+          echo "## 🏗️ Infrastructure Deployment Successful!" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Resource | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| 🌐 Website URL | ${{ steps.terraform-output.outputs.website_url }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 🪣 S3 Bucket | ${{ steps.terraform-output.outputs.s3_bucket_name }} |" >> $GITHUB_STEP_SUMMARY
           echo "| ☁️ CloudFront ID | ${{ steps.terraform-output.outputs.cloudfront_distribution_id }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🌐 Website URL | ${{ steps.terraform-output.outputs.website_url }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 🔗 Quick Links" >> $GITHUB_STEP_SUMMARY
-          echo "- [Visit Website](${{ steps.terraform-output.outputs.website_url }})" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔗 Management Links" >> $GITHUB_STEP_SUMMARY
           echo "- [S3 Console](https://s3.console.aws.amazon.com/s3/buckets/${{ steps.terraform-output.outputs.s3_bucket_name }})" >> $GITHUB_STEP_SUMMARY
           echo "- [CloudFront Console](https://console.aws.amazon.com/cloudfront/v3/home#/distributions/${{ steps.terraform-output.outputs.cloudfront_distribution_id }})" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📋 GitHub Secrets Updated" >> $GITHUB_STEP_SUMMARY
+          echo "Make sure these secrets are set in your repository:" >> $GITHUB_STEP_SUMMARY
+          echo "- \`S3_BUCKET_NAME\`: ${{ steps.terraform-output.outputs.s3_bucket_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- \`CLOUDFRONT_DISTRIBUTION_ID\`: ${{ steps.terraform-output.outputs.cloudfront_distribution_id }}" >> $GITHUB_STEP_SUMMARY
 
   cleanup-on-failure:
     name: 🧹 Cleanup on Failure
     runs-on: ubuntu-latest
     if: failure() && github.ref == 'refs/heads/main'
-    needs: [terraform-apply-and-deploy]
+    needs: [terraform-apply]
     defaults:
       run:
         working-directory: microhapDB-frontend/terraform
@@ -240,8 +182,9 @@ jobs:
       - name: 🚀 Terraform Init
         run: terraform init
 
-      - name: ⚠️ Terraform Destroy (if needed)
+      - name: ⚠️ Infrastructure Failure Notice
         run: |
-          echo "⚠️ Deployment failed. Consider running 'terraform destroy' manually if needed."
-          echo "This step is commented out for safety - manual intervention required."
+          echo "⚠️ Infrastructure deployment failed. Manual intervention may be required." >> $GITHUB_STEP_SUMMARY
+          echo "Check the Terraform state and consider running 'terraform destroy' if needed." >> $GITHUB_STEP_SUMMARY
+          echo "Terraform destroy is commented out for safety - manual review required." >> $GITHUB_STEP_SUMMARY
           # terraform destroy -auto-approve -var="backend_url=${{ secrets.VUE_APP_BACKEND_URL }}" 

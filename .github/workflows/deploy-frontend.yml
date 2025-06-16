@@ -1,12 +1,21 @@
-name: Deploy Frontend to AWS S3 + CloudFront
+name: Deploy Frontend Application
 
 on:
   push:
     branches: [ main ]
-    paths: 
-      - 'microhapDB-frontend/**'
+    paths:
+      - 'microhapDB-frontend/src/**'
+      - 'microhapDB-frontend/public/**'
+      - 'microhapDB-frontend/package*.json'
+      - 'microhapDB-frontend/*.js'
+      - 'microhapDB-frontend/*.ts'
+      - 'microhapDB-frontend/*.vue'
       - '.github/workflows/deploy-frontend.yml'
-  workflow_dispatch:  # Allow manual triggering
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '18'
+  AWS_REGION: 'us-east-1'
 
 jobs:
   deploy-frontend:
@@ -14,126 +23,139 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - name: 📥 Checkout code
-      uses: actions/checkout@v4
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
       
-    - name: 🔧 Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '18'
-        cache: 'npm'
-        cache-dependency-path: microhapDB-frontend/package-lock.json
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: microhapDB-frontend/package-lock.json
         
-    - name: 🔑 Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: us-east-1
+      - name: 🔑 Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
         
-    - name: 📦 Install dependencies
-      working-directory: ./microhapDB-frontend
-      run: npm ci
-      
-    - name: ⚙️ Create production environment file
-      working-directory: ./microhapDB-frontend
-      run: |
-        cat > .env.production << EOF
-        VUE_APP_BACKEND_URL=${{ secrets.VUE_APP_BACKEND_URL }}
-        VUE_APP_ORCID_CLIENT_ID=${{ secrets.VUE_APP_ORCID_CLIENT_ID }}
-        VUE_APP_ORCID_AUTH_URL=https://sandbox.orcid.org/oauth/authorize?client_id=${{ secrets.VUE_APP_ORCID_CLIENT_ID }}&response_type=code&scope=/authenticate&redirect_uri=${{ secrets.ORCID_REDIRECT_URI }}
-        VUE_APP_ORCID_REDIRECT_URI=${{ secrets.ORCID_REDIRECT_URI }}
-        EOF
+      - name: 📦 Install Dependencies
+        working-directory: microhapDB-frontend
+        run: npm ci
         
-    - name: 🏗️ Build application
-      working-directory: ./microhapDB-frontend
-      run: npm run build
-      
-    - name: 📤 Deploy to S3
-      env:
-        S3_BUCKET: ${{ secrets.S3_BUCKET_NAME }}
-      run: |
-        echo "🪣 Deploying to S3 bucket: $S3_BUCKET"
+      - name: ⚙️ Create Production Environment
+        working-directory: microhapDB-frontend
+        run: |
+          cat > .env.production << EOF
+          VUE_APP_BACKEND_URL=${{ secrets.VUE_APP_BACKEND_URL }}
+          VUE_APP_ORCID_CLIENT_ID=${{ secrets.VUE_APP_ORCID_CLIENT_ID }}
+          VUE_APP_ORCID_AUTH_URL=https://sandbox.orcid.org/oauth/authorize?client_id=${{ secrets.VUE_APP_ORCID_CLIENT_ID }}&response_type=code&scope=/authenticate&redirect_uri=${{ secrets.ORCID_REDIRECT_URI }}
+          VUE_APP_ORCID_REDIRECT_URI=${{ secrets.ORCID_REDIRECT_URI }}
+          EOF
         
-        # Sync built files to S3
-        aws s3 sync ./microhapDB-frontend/dist/ s3://$S3_BUCKET --delete
+      - name: 🏗️ Build Application
+        working-directory: microhapDB-frontend
+        run: npm run build
         
-        # Set proper content types and cache headers
-        echo "🔧 Setting content types and cache headers..."
-        
-        # HTML files - no cache
-        aws s3 cp s3://$S3_BUCKET s3://$S3_BUCKET --recursive \
-          --exclude "*" --include "*.html" \
-          --metadata-directive REPLACE \
-          --content-type "text/html" \
-          --cache-control "no-cache, no-store, must-revalidate"
+      - name: 📤 Deploy to S3
+        working-directory: microhapDB-frontend
+        run: |
+          echo "🪣 Deploying to S3 bucket: ${{ secrets.S3_BUCKET_NAME }}"
           
-        # JavaScript files - long cache
-        aws s3 cp s3://$S3_BUCKET s3://$S3_BUCKET --recursive \
-          --exclude "*" --include "*.js" \
-          --metadata-directive REPLACE \
-          --content-type "application/javascript" \
-          --cache-control "public, max-age=31536000, immutable"
+          # Sync built files to S3
+          aws s3 sync dist/ s3://${{ secrets.S3_BUCKET_NAME }}/ --delete
           
-        # CSS files - long cache
-        aws s3 cp s3://$S3_BUCKET s3://$S3_BUCKET --recursive \
-          --exclude "*" --include "*.css" \
-          --metadata-directive REPLACE \
-          --content-type "text/css" \
-          --cache-control "public, max-age=31536000, immutable"
+          # Set proper content types and cache headers
+          echo "🔧 Setting content types and cache headers..."
           
-    - name: 🔄 Invalidate CloudFront
-      env:
-        CLOUDFRONT_DISTRIBUTION_ID: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}
-      run: |
-        echo "🔄 Invalidating CloudFront cache..."
-        INVALIDATION_ID=$(aws cloudfront create-invalidation \
-          --distribution-id $CLOUDFRONT_DISTRIBUTION_ID \
-          --paths "/*" \
-          --query 'Invalidation.Id' \
-          --output text)
-        
-        echo "📋 Invalidation ID: $INVALIDATION_ID"
+          # HTML files - no cache for immediate updates
+          aws s3 cp s3://${{ secrets.S3_BUCKET_NAME }}/ s3://${{ secrets.S3_BUCKET_NAME }}/ --recursive \
+            --exclude "*" --include "*.html" \
+            --metadata-directive REPLACE \
+            --content-type "text/html" \
+            --cache-control "public, max-age=0, must-revalidate"
+            
+          # JavaScript files - long cache with versioning
+          aws s3 cp s3://${{ secrets.S3_BUCKET_NAME }}/ s3://${{ secrets.S3_BUCKET_NAME }}/ --recursive \
+            --exclude "*" --include "*.js" \
+            --metadata-directive REPLACE \
+            --content-type "application/javascript" \
+            --cache-control "public, max-age=31536000, immutable"
+            
+          # CSS files - long cache with versioning
+          aws s3 cp s3://${{ secrets.S3_BUCKET_NAME }}/ s3://${{ secrets.S3_BUCKET_NAME }}/ --recursive \
+            --exclude "*" --include "*.css" \
+            --metadata-directive REPLACE \
+            --content-type "text/css" \
+            --cache-control "public, max-age=31536000, immutable"
+            
+          # Images and other assets - long cache
+          aws s3 cp s3://${{ secrets.S3_BUCKET_NAME }}/ s3://${{ secrets.S3_BUCKET_NAME }}/ --recursive \
+            --exclude "*" --include "*.png" --include "*.jpg" --include "*.jpeg" --include "*.gif" --include "*.svg" --include "*.ico" \
+            --metadata-directive REPLACE \
+            --cache-control "public, max-age=31536000, immutable"
           
-    - name: 🧪 Test Deployment
-      env:
-        S3_BUCKET: ${{ secrets.S3_BUCKET_NAME }}
-        CLOUDFRONT_DISTRIBUTION_ID: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}
-      run: |
-        # Get CloudFront domain name
-        CLOUDFRONT_DOMAIN=$(aws cloudfront get-distribution \
-          --id $CLOUDFRONT_DISTRIBUTION_ID \
-          --query 'Distribution.DomainName' \
-          --output text)
-        
-        echo "🌐 Website URL: https://$CLOUDFRONT_DOMAIN"
-        
-        # Wait a moment for deployment
-        sleep 10
-        
-        # Test the website
-        if curl -f -s "https://$CLOUDFRONT_DOMAIN" > /dev/null; then
-          echo "✅ Frontend deployment successful!"
-        else
-          echo "⚠️ Website may still be propagating..."
-        fi
-        
-        echo "📦 S3 Bucket: $S3_BUCKET"
-        echo "🚀 CloudFront Distribution: $CLOUDFRONT_DISTRIBUTION_ID"
+      - name: 🔄 Invalidate CloudFront Cache
+        run: |
+          echo "🔄 Invalidating CloudFront cache..."
+          INVALIDATION_ID=$(aws cloudfront create-invalidation \
+            --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --paths "/*" \
+            --query 'Invalidation.Id' \
+            --output text)
+          
+          echo "📋 Invalidation ID: $INVALIDATION_ID"
+          
+      - name: 🧪 Test Deployment
+        run: |
+          # Get CloudFront domain name
+          CLOUDFRONT_DOMAIN=$(aws cloudfront get-distribution \
+            --id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --query 'Distribution.DomainName' \
+            --output text)
+          
+          echo "🌐 Website URL: https://$CLOUDFRONT_DOMAIN"
+          
+          # Wait for deployment to propagate
+          echo "⏳ Waiting for deployment to propagate..."
+          sleep 30
+          
+          # Test the website
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://$CLOUDFRONT_DOMAIN")
+          if [ "$HTTP_STATUS" = "200" ]; then
+            echo "✅ Frontend deployment successful!"
+            echo "🌐 Website is accessible at: https://$CLOUDFRONT_DOMAIN"
+          else
+            echo "⚠️ Website returned HTTP $HTTP_STATUS - may still be propagating"
+            echo "🌐 Check manually at: https://$CLOUDFRONT_DOMAIN"
+          fi
+          
+          echo "📦 S3 Bucket: ${{ secrets.S3_BUCKET_NAME }}"
+          echo "🚀 CloudFront Distribution: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}"
 
-    - name: 📊 Deployment Summary
-      if: success()
-      env:
-        CLOUDFRONT_DISTRIBUTION_ID: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}
-      run: |
-        CLOUDFRONT_DOMAIN=$(aws cloudfront get-distribution \
-          --id $CLOUDFRONT_DISTRIBUTION_ID \
-          --query 'Distribution.DomainName' \
-          --output text)
-        
-        echo "## 🎉 Frontend Deployment Successful!" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### 🔗 Quick Links" >> $GITHUB_STEP_SUMMARY
-        echo "- [🌐 Website](https://$CLOUDFRONT_DOMAIN)" >> $GITHUB_STEP_SUMMARY
-        echo "- [📦 S3 Console](https://s3.console.aws.amazon.com/s3/buckets/${{ secrets.S3_BUCKET_NAME }})" >> $GITHUB_STEP_SUMMARY
-        echo "- [☁️ CloudFront Console](https://console.aws.amazon.com/cloudfront/v3/home#/distributions/$CLOUDFRONT_DISTRIBUTION_ID)" >> $GITHUB_STEP_SUMMARY 
+      - name: 📊 Deployment Summary
+        if: success()
+        run: |
+          CLOUDFRONT_DOMAIN=$(aws cloudfront get-distribution \
+            --id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --query 'Distribution.DomainName' \
+            --output text)
+          
+          echo "## 🎉 Frontend Deployment Successful!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Resource | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 🌐 Website URL | https://$CLOUDFRONT_DOMAIN |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🪣 S3 Bucket | ${{ secrets.S3_BUCKET_NAME }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| ☁️ CloudFront ID | ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔗 Quick Links" >> $GITHUB_STEP_SUMMARY
+          echo "- [🌐 Visit Website](https://$CLOUDFRONT_DOMAIN)" >> $GITHUB_STEP_SUMMARY
+          echo "- [📦 S3 Console](https://s3.console.aws.amazon.com/s3/buckets/${{ secrets.S3_BUCKET_NAME }})" >> $GITHUB_STEP_SUMMARY
+          echo "- [☁️ CloudFront Console](https://console.aws.amazon.com/cloudfront/v3/home#/distributions/${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }})" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📋 Deployment Details" >> $GITHUB_STEP_SUMMARY
+          echo "- **Build Time**: $(date)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch**: \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY 
