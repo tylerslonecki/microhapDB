@@ -24,7 +24,6 @@ A modern, responsive web interface built with Vue.js that provides:
 - **User Authentication**: ORCID-based login system for researchers
 - **Admin Dashboard**: Administrative tools for data management
 - **Search & Filter**: Advanced search capabilities across genetic datasets
-- **Responsive Design**: Works seamlessly on desktop and mobile devices
 
 **Key Features**:
 - Real-time data validation during upload
