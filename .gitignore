@@ -100,13 +100,22 @@ jspm_packages/
 # Yarn Integrity file
 .yarn-integrity
 
-# dotenv environment variables file
+# dotenv environment variables file - ALL .env files
 .env
+.env.*
+*.env
 .env.test
 .env.local
+.env.development
 .env.development.local
-.env.test.local
+.env.staging
+.env.staging.local
+.env.production
 .env.production.local
+production.env
+development.env
+staging.env
+local.env
 
 # Terraform
 *.tfstate
@@ -115,6 +124,12 @@ jspm_packages/
 .terraform.lock.hcl
 *.tfvars
 .terraform.tfstate.lock.info
+**/terraform.tfstate
+**/terraform.tfstate.backup
+**/.terraform/
+**/terraform.tfvars
+**/tfplan
+**/terraform.zip
 
 # Docker
 .dockerignore
@@ -131,6 +146,8 @@ jspm_packages/
 *.csr
 *.p12
 *.pfx
+microhapdb-key.pem
+**/microhapdb-key.pem
 
 # Backup files
 *.bak
@@ -192,4 +209,13 @@ uploads/
 temp/
 tmp/
 cache/
-.cache/ 
+.cache/
+
+# AWS and deployment
+.aws/
+aws-config/
+deployment-logs/
+
+# Local binaries
+**/bin/terraform
+**/bin/aws 

@@ -1,17 +1,34 @@
+# Compiled output
 .DS_Store
 node_modules
 /dist
+/build
 
-
-# local env files
+# Local env files - ALL .env files
+.env
+.env.*
+*.env
 .env.local
 .env.*.local
+.env.development
+.env.development.local
+.env.staging
+.env.staging.local
+.env.test.local
+.env.production
+.env.production.local
+production.env
+development.env
+staging.env
+local.env
+copy.env
 
 # Log files
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+lerna-debug.log*
 
 # Editor directories and files
 .idea
@@ -21,3 +38,51 @@ pnpm-debug.log*
 *.njsproj
 *.sln
 *.sw?
+
+# Vue.js specific
+.nuxt
+.vuepress/dist
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# Dependency directories
+jspm_packages/
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Microbundle cache
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+
+# Build artifacts
+*.map

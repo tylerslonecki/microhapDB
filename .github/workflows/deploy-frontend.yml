@@ -1,0 +1,139 @@
+name: Deploy Frontend to AWS S3 + CloudFront
+
+on:
+  push:
+    branches: [ main ]
+    paths: 
+      - 'microhapDB-frontend/**'
+      - '.github/workflows/deploy-frontend.yml'
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  deploy-frontend:
+    name: 🌐 Deploy Frontend
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+      
+    - name: 🔧 Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: microhapDB-frontend/package-lock.json
+        
+    - name: 🔑 Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+        
+    - name: 📦 Install dependencies
+      working-directory: ./microhapDB-frontend
+      run: npm ci
+      
+    - name: ⚙️ Create production environment file
+      working-directory: ./microhapDB-frontend
+      run: |
+        cat > .env.production << EOF
+        VUE_APP_BACKEND_URL=${{ secrets.VUE_APP_BACKEND_URL }}
+        VUE_APP_ORCID_CLIENT_ID=${{ secrets.VUE_APP_ORCID_CLIENT_ID }}
+        VUE_APP_ORCID_AUTH_URL=https://sandbox.orcid.org/oauth/authorize?client_id=${{ secrets.VUE_APP_ORCID_CLIENT_ID }}&response_type=code&scope=/authenticate&redirect_uri=${{ secrets.ORCID_REDIRECT_URI }}
+        VUE_APP_ORCID_REDIRECT_URI=${{ secrets.ORCID_REDIRECT_URI }}
+        EOF
+        
+    - name: 🏗️ Build application
+      working-directory: ./microhapDB-frontend
+      run: npm run build
+      
+    - name: 📤 Deploy to S3
+      env:
+        S3_BUCKET: ${{ secrets.S3_BUCKET_NAME }}
+      run: |
+        echo "🪣 Deploying to S3 bucket: $S3_BUCKET"
+        
+        # Sync built files to S3
+        aws s3 sync ./microhapDB-frontend/dist/ s3://$S3_BUCKET --delete
+        
+        # Set proper content types and cache headers
+        echo "🔧 Setting content types and cache headers..."
+        
+        # HTML files - no cache
+        aws s3 cp s3://$S3_BUCKET s3://$S3_BUCKET --recursive \
+          --exclude "*" --include "*.html" \
+          --metadata-directive REPLACE \
+          --content-type "text/html" \
+          --cache-control "no-cache, no-store, must-revalidate"
+          
+        # JavaScript files - long cache
+        aws s3 cp s3://$S3_BUCKET s3://$S3_BUCKET --recursive \
+          --exclude "*" --include "*.js" \
+          --metadata-directive REPLACE \
+          --content-type "application/javascript" \
+          --cache-control "public, max-age=31536000, immutable"
+          
+        # CSS files - long cache
+        aws s3 cp s3://$S3_BUCKET s3://$S3_BUCKET --recursive \
+          --exclude "*" --include "*.css" \
+          --metadata-directive REPLACE \
+          --content-type "text/css" \
+          --cache-control "public, max-age=31536000, immutable"
+          
+    - name: 🔄 Invalidate CloudFront
+      env:
+        CLOUDFRONT_DISTRIBUTION_ID: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}
+      run: |
+        echo "🔄 Invalidating CloudFront cache..."
+        INVALIDATION_ID=$(aws cloudfront create-invalidation \
+          --distribution-id $CLOUDFRONT_DISTRIBUTION_ID \
+          --paths "/*" \
+          --query 'Invalidation.Id' \
+          --output text)
+        
+        echo "📋 Invalidation ID: $INVALIDATION_ID"
+          
+    - name: 🧪 Test Deployment
+      env:
+        S3_BUCKET: ${{ secrets.S3_BUCKET_NAME }}
+        CLOUDFRONT_DISTRIBUTION_ID: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}
+      run: |
+        # Get CloudFront domain name
+        CLOUDFRONT_DOMAIN=$(aws cloudfront get-distribution \
+          --id $CLOUDFRONT_DISTRIBUTION_ID \
+          --query 'Distribution.DomainName' \
+          --output text)
+        
+        echo "🌐 Website URL: https://$CLOUDFRONT_DOMAIN"
+        
+        # Wait a moment for deployment
+        sleep 10
+        
+        # Test the website
+        if curl -f -s "https://$CLOUDFRONT_DOMAIN" > /dev/null; then
+          echo "✅ Frontend deployment successful!"
+        else
+          echo "⚠️ Website may still be propagating..."
+        fi
+        
+        echo "📦 S3 Bucket: $S3_BUCKET"
+        echo "🚀 CloudFront Distribution: $CLOUDFRONT_DISTRIBUTION_ID"
+
+    - name: 📊 Deployment Summary
+      if: success()
+      env:
+        CLOUDFRONT_DISTRIBUTION_ID: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}
+      run: |
+        CLOUDFRONT_DOMAIN=$(aws cloudfront get-distribution \
+          --id $CLOUDFRONT_DISTRIBUTION_ID \
+          --query 'Distribution.DomainName' \
+          --output text)
+        
+        echo "## 🎉 Frontend Deployment Successful!" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 🔗 Quick Links" >> $GITHUB_STEP_SUMMARY
+        echo "- [🌐 Website](https://$CLOUDFRONT_DOMAIN)" >> $GITHUB_STEP_SUMMARY
+        echo "- [📦 S3 Console](https://s3.console.aws.amazon.com/s3/buckets/${{ secrets.S3_BUCKET_NAME }})" >> $GITHUB_STEP_SUMMARY
+        echo "- [☁️ CloudFront Console](https://console.aws.amazon.com/cloudfront/v3/home#/distributions/$CLOUDFRONT_DISTRIBUTION_ID)" >> $GITHUB_STEP_SUMMARY 

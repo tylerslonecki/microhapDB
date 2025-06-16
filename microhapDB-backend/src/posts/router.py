@@ -1055,9 +1055,85 @@ async def get_sequences(
             query = query.where(or_(*access_conditions))
 
     # Calculate total records using a more efficient count query
-    count_query = select(func.count(Sequence.alleleid)).select_from(
-        query.subquery()
-    )
+    count_query = select(func.count(Sequence.alleleid))
+    
+    # Apply the same filters to the count query
+    if request.species:
+        count_query = count_query.where(Sequence.species == request.species)
+    
+    if request.globalFilter:
+        global_search = f"%{request.globalFilter}%"
+        count_query = count_query.where(
+            or_(
+                Sequence.alleleid.ilike(global_search),
+                Sequence.allelesequence.ilike(global_search),
+                Sequence.species.ilike(global_search),
+                Sequence.info.ilike(global_search),
+                Sequence.associated_trait.ilike(global_search)
+            )
+        )
+    
+    if request.filters:
+        for field, filter_obj in request.filters.items():
+            if filter_obj.value:
+                if field == 'alleleid':
+                    count_query = count_query.where(Sequence.alleleid.ilike(f"%{filter_obj.value}%"))
+                elif field == 'allelesequence':
+                    count_query = count_query.where(Sequence.allelesequence.ilike(f"%{filter_obj.value}%"))
+                elif field == 'info':
+                    count_query = count_query.where(Sequence.info.ilike(f"%{filter_obj.value}%"))
+                elif field == 'associated_trait':
+                    count_query = count_query.where(Sequence.associated_trait.ilike(f"%{filter_obj.value}%"))
+    
+    # Apply the same access control filters to count query
+    if not current_user.is_admin:
+        # Pre-compute accessible user IDs to avoid repeated subqueries
+        collaborator_ids = [collaboration.user_id for collaboration in current_user.collaborator_in]
+        accessible_ids = [current_user.id] + collaborator_ids
+        
+        # Create a more efficient access control filter
+        access_conditions = []
+        
+        if current_user.role == UserRoleEnum.PUBLIC:
+            # Public users can only see data uploaded by public users
+            access_conditions.append(
+                Sequence.version_added.in_(
+                    select(DatabaseVersion.version).where(
+                        and_(
+                            DatabaseVersion.species == request.species,
+                            DatabaseVersion.uploaded_by.in_(
+                                select(User.id).where(User.role == UserRoleEnum.PUBLIC)
+                            )
+                        )
+                    )
+                )
+            )
+        else:  # COLLABORATOR or PRIVATE_USER
+            # Can see their data, collaborators' data, and public data
+            access_conditions.extend([
+                Sequence.version_added.in_(
+                    select(DatabaseVersion.version).where(
+                        and_(
+                            DatabaseVersion.species == request.species,
+                            DatabaseVersion.uploaded_by.in_(accessible_ids)
+                        )
+                    )
+                ),
+                Sequence.version_added.in_(
+                    select(DatabaseVersion.version).where(
+                        and_(
+                            DatabaseVersion.species == request.species,
+                            DatabaseVersion.uploaded_by.in_(
+                                select(User.id).where(User.role == UserRoleEnum.PUBLIC)
+                            )
+                        )
+                    )
+                )
+            ])
+        
+        if access_conditions:
+            count_query = count_query.where(or_(*access_conditions))
+
     total_result = await db.execute(count_query)
     total = total_result.scalar()
 
@@ -1844,40 +1920,61 @@ async def get_allele_counts_by_version(
     Optionally filter by program ID. OPTIMIZED VERSION.
     """
     try:
-        # Use a single efficient query with window functions to calculate cumulative counts
-        # This replaces the memory-intensive approach of loading all alleles
-        base_query = text("""
-            WITH version_stats AS (
-                SELECT 
-                    dv.version,
-                    dv.species,
-                    dv.created_at,
-                    dv.description,
-                    dv.program_id,
-                    p.name as program_name,
-                    COUNT(DISTINCT s.alleleid) as new_alleles,
-                    SUM(COUNT(DISTINCT s.alleleid)) OVER (
-                        ORDER BY dv.version ROWS UNBOUNDED PRECEDING
-                    ) as total_alleles
-                FROM database_versions dv
-                JOIN programs p ON dv.program_id = p.id
-                LEFT JOIN sequence_table s ON s.version_added = dv.version AND s.species = dv.species
-                WHERE dv.species = :species
-                    AND (:program_id IS NULL OR dv.program_id = :program_id)
-                GROUP BY dv.version, dv.species, dv.created_at, dv.description, dv.program_id, p.name
-                ORDER BY dv.version
-            )
-            SELECT * FROM version_stats
-        """)
+        # Build query dynamically based on whether program_id is provided
+        if program_id is not None:
+            # Query with program filter
+            base_query = text("""
+                WITH version_stats AS (
+                    SELECT 
+                        dv.version,
+                        dv.species,
+                        dv.created_at,
+                        dv.description,
+                        dv.program_id,
+                        p.name as program_name,
+                        COUNT(DISTINCT s.alleleid) as new_alleles,
+                        SUM(COUNT(DISTINCT s.alleleid)) OVER (
+                            ORDER BY dv.version ROWS UNBOUNDED PRECEDING
+                        ) as total_alleles
+                    FROM database_versions dv
+                    JOIN programs p ON dv.program_id = p.id
+                    LEFT JOIN sequence_table s ON s.version_added = dv.version AND s.species = dv.species
+                    WHERE dv.species = :species
+                        AND dv.program_id = :program_id
+                    GROUP BY dv.version, dv.species, dv.created_at, dv.description, dv.program_id, p.name
+                    ORDER BY dv.version
+                )
+                SELECT * FROM version_stats
+            """)
+            query_params = {"species": species, "program_id": program_id}
+        else:
+            # Query without program filter
+            base_query = text("""
+                WITH version_stats AS (
+                    SELECT 
+                        dv.version,
+                        dv.species,
+                        dv.created_at,
+                        dv.description,
+                        dv.program_id,
+                        p.name as program_name,
+                        COUNT(DISTINCT s.alleleid) as new_alleles,
+                        SUM(COUNT(DISTINCT s.alleleid)) OVER (
+                            ORDER BY dv.version ROWS UNBOUNDED PRECEDING
+                        ) as total_alleles
+                    FROM database_versions dv
+                    JOIN programs p ON dv.program_id = p.id
+                    LEFT JOIN sequence_table s ON s.version_added = dv.version AND s.species = dv.species
+                    WHERE dv.species = :species
+                    GROUP BY dv.version, dv.species, dv.created_at, dv.description, dv.program_id, p.name
+                    ORDER BY dv.version
+                )
+                SELECT * FROM version_stats
+            """)
+            query_params = {"species": species}
 
         # Execute the optimized query
-        result = await session.execute(
-            base_query, 
-            {
-                "species": species, 
-                "program_id": program_id
-            }
-        )
+        result = await session.execute(base_query, query_params)
         versions = result.fetchall()
 
         if not versions:

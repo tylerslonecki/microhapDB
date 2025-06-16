@@ -10,14 +10,13 @@ import logging  # Import standard logging module
 env_path = Path(__file__).parent / '.env'
 load_dotenv(dotenv_path=env_path)
 
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, status
 from fastapi.responses import RedirectResponse, JSONResponse
 from src.auth.router import router as auth_router
 from src.aws.router import router as aws_router
 from src.posts.router import router as posts_router
 from src.models import AdminOrcid, User
-from src.database import init_db
-from src.database import AsyncSessionLocal
+from src.database import init_db, AsyncSessionLocal
 from fastapi.middleware.cors import CORSMiddleware
 from src.auth.dependencies import get_current_user, get_admin_user
 from src.auth.models import UserResponse
@@ -27,7 +26,7 @@ import time
 from sqlalchemy.future import select
 from src.auth.models import UserRoleEnum
 from starlette.middleware.base import BaseHTTPMiddleware
-from sqlalchemy.exc import MissingGreenlet
+from sqlalchemy.exc import MissingGreenlet, SQLAlchemyError
 from starlette.responses import Response
 
 from src.posts.router import jobs
@@ -164,6 +163,77 @@ async def protected_route(current_user: UserResponse = Depends(get_current_user)
 @app.get("/admin-route", response_model=UserResponse)
 async def admin_route(admin_user: UserResponse = Depends(get_admin_user)):
     return admin_user
+
+@app.get("/health")
+async def health_check():
+    """
+    Health check endpoint for container health monitoring.
+    Verifies database connectivity and critical services.
+    """
+    health_status = {
+        "status": "healthy",
+        "checks": {},
+        "timestamp": datetime.utcnow().isoformat()
+    }
+    
+    try:
+        # Check database connectivity
+        async with AsyncSessionLocal() as session:
+            await session.execute(select(1))
+            health_status["checks"]["database"] = {
+                "status": "connected",
+                "error": None
+            }
+    except SQLAlchemyError as e:
+        logging.error(f"Database health check failed: {str(e)}")
+        health_status.update({
+            "status": "unhealthy",
+            "checks": {
+                "database": {
+                    "status": "disconnected",
+                    "error": str(e)
+                }
+            }
+        })
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content=health_status
+        )
+    
+    # Check temp directory access
+    try:
+        temp_dir = os.getenv('TEMP_UPLOAD_DIR', '/tmp/microhap')
+        test_file = os.path.join(temp_dir, 'health_check.tmp')
+        
+        # Try to write to temp directory
+        with open(test_file, 'w') as f:
+            f.write('health check')
+        
+        # Clean up test file
+        os.remove(test_file)
+        
+        health_status["checks"]["file_system"] = {
+            "status": "writable",
+            "error": None
+        }
+    except Exception as e:
+        logging.error(f"File system health check failed: {str(e)}")
+        health_status.update({
+            "status": "unhealthy",
+            "checks": {
+                **health_status["checks"],
+                "file_system": {
+                    "status": "error",
+                    "error": str(e)
+                }
+            }
+        })
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content=health_status
+        )
+    
+    return health_status
 
 if __name__ == "__main__":
     import uvicorn

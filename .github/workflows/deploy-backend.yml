@@ -1,0 +1,181 @@
+name: Deploy Backend to AWS EC2
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'microhapDB-backend/**'
+      - '.github/workflows/deploy-backend.yml'
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  deploy:
+    name: 🚀 Deploy Backend
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+      
+    - name: 🔧 Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: 🔑 Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-2
+        
+    - name: 🐳 Login to GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: 🏗️ Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./microhapDB-backend
+        file: ./microhapDB-backend/Dockerfile
+        platforms: linux/amd64
+        push: true
+        tags: |
+          ghcr.io/${{ github.repository_owner }}/haplosearch:latest
+          ghcr.io/${{ github.repository_owner }}/haplosearch:${{ github.sha }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        
+    - name: 🚀 Deploy to EC2
+      env:
+        INSTANCE_ID: ${{ secrets.EC2_INSTANCE_ID }}
+        AWS_REGION: us-east-2
+        DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        ORCID_CLIENT_ID: ${{ secrets.ORCID_CLIENT_ID }}
+        ORCID_CLIENT_SECRET: ${{ secrets.ORCID_CLIENT_SECRET }}
+        ORCID_REDIRECT_URI: ${{ secrets.ORCID_REDIRECT_URI }}
+        SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        # Get instance information
+        PUBLIC_IP=$(aws ec2 describe-instances \
+          --instance-ids "$INSTANCE_ID" \
+          --query 'Reservations[0].Instances[0].PublicIpAddress' \
+          --output text --region "$AWS_REGION")
+        
+        INSTANCE_STATE=$(aws ec2 describe-instances \
+          --instance-ids "$INSTANCE_ID" \
+          --query 'Reservations[0].Instances[0].State.Name' \
+          --output text --region "$AWS_REGION")
+        
+        echo "🔍 Instance State: $INSTANCE_STATE"
+        echo "🌐 Public IP: $PUBLIC_IP"
+        echo "🏷️ Image Tag: $IMAGE_TAG"
+        
+        # Start instance if stopped
+        if [ "$INSTANCE_STATE" != "running" ]; then
+          echo "⚡ Starting instance..."
+          aws ec2 start-instances --instance-ids "$INSTANCE_ID" --region "$AWS_REGION"
+          aws ec2 wait instance-running --instance-ids "$INSTANCE_ID" --region "$AWS_REGION"
+          
+          # Get new IP after restart
+          PUBLIC_IP=$(aws ec2 describe-instances \
+            --instance-ids "$INSTANCE_ID" \
+            --query 'Reservations[0].Instances[0].PublicIpAddress' \
+            --output text --region "$AWS_REGION")
+          echo "🌐 New Public IP: $PUBLIC_IP"
+          
+          # Wait for SSH to be ready
+          sleep 30
+        fi
+        
+        # Setup SSH
+        echo "$SSH_PRIVATE_KEY" > ssh_key.pem
+        chmod 600 ssh_key.pem
+        
+        # Create update script
+        cat > update_container.sh << 'EOF'
+        #!/bin/bash
+        set -e
+        
+        echo "📥 Pulling latest haplosearch image..."
+        docker pull ghcr.io/tylerslonecki/haplosearch:latest
+        
+        echo "⏹️ Stopping current container..."
+        docker stop haplosearch-backend || true
+        
+        echo "🗑️ Removing current container..."
+        docker rm haplosearch-backend || true
+        
+        echo "🧹 Cleaning up old images..."
+        docker image prune -f || true
+        
+        echo "🚀 Starting new haplosearch container..."
+        docker run -d \
+          --name haplosearch-backend \
+          --restart unless-stopped \
+          -p 80:80 \
+          -e "DATABASE_URL=$DATABASE_URL" \
+          -e "ORCID_CLIENT_ID=$ORCID_CLIENT_ID" \
+          -e "ORCID_CLIENT_SECRET=$ORCID_CLIENT_SECRET" \
+          -e "ORCID_REDIRECT_URI=$ORCID_REDIRECT_URI" \
+          -e "ENVIRONMENT=production" \
+          ghcr.io/tylerslonecki/haplosearch:latest
+        
+        echo "⏳ Waiting for container to start..."
+        sleep 15
+        
+        echo "📊 Container status:"
+        docker ps | grep haplosearch-backend || echo "Container not found"
+        
+        echo "🧪 Testing health endpoint..."
+        curl -f http://localhost/health || echo "Health check failed"
+        
+        echo "📋 Container logs (last 10 lines):"
+        docker logs --tail 10 haplosearch-backend || echo "Could not get logs"
+        EOF
+        
+        # Copy and execute update script
+        scp -i ssh_key.pem -o StrictHostKeyChecking=no update_container.sh ec2-user@$PUBLIC_IP:~/
+        ssh -i ssh_key.pem -o StrictHostKeyChecking=no ec2-user@$PUBLIC_IP \
+          "chmod +x update_container.sh && \
+           DATABASE_URL='$DATABASE_URL' \
+           ORCID_CLIENT_ID='$ORCID_CLIENT_ID' \
+           ORCID_CLIENT_SECRET='$ORCID_CLIENT_SECRET' \
+           ORCID_REDIRECT_URI='$ORCID_REDIRECT_URI' \
+           ./update_container.sh"
+        
+        # Test deployment
+        echo "🧪 Testing deployment..."
+        sleep 10
+        
+        if curl -f -s "http://$PUBLIC_IP/health" > /dev/null 2>&1; then
+          echo "✅ Backend deployment successful!"
+          echo "🌐 Application available at: http://$PUBLIC_IP"
+          echo "📚 API docs: http://$PUBLIC_IP/docs"
+        else
+          echo "❌ Deployment may have failed - check logs"
+          ssh -i ssh_key.pem -o StrictHostKeyChecking=no ec2-user@$PUBLIC_IP \
+            "docker logs --tail 20 haplosearch-backend" || true
+          exit 1
+        fi
+        
+        # Cleanup
+        rm -f ssh_key.pem update_container.sh
+
+    - name: 📊 Deployment Summary
+      if: success()
+      run: |
+        echo "## 🎉 HaploSearch Backend Deployment Successful!" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 🔗 Quick Links" >> $GITHUB_STEP_SUMMARY
+        echo "- [🏥 Health Check](http://18.117.136.223/health)" >> $GITHUB_STEP_SUMMARY
+        echo "- [📚 API Documentation](http://18.117.136.223/docs)" >> $GITHUB_STEP_SUMMARY
+        echo "- [🖥️ EC2 Console](https://us-east-2.console.aws.amazon.com/ec2/home?region=us-east-2#Instances:instanceId=${{ secrets.EC2_INSTANCE_ID }})" >> $GITHUB_STEP_SUMMARY
+        echo "- [📦 Container Registry](https://github.com/${{ github.repository_owner }}/microhapDB/pkgs/container/haplosearch)" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📋 Deployment Details" >> $GITHUB_STEP_SUMMARY
+        echo "- **Image**: \`ghcr.io/${{ github.repository_owner }}/haplosearch:latest\`" >> $GITHUB_STEP_SUMMARY
+        echo "- **Container**: \`haplosearch-backend\`" >> $GITHUB_STEP_SUMMARY
+        echo "- **Commit**: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY 

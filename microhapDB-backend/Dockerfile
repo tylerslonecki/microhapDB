@@ -1,5 +1,5 @@
 #Base image
-FROM python:3.12-slim
+FROM python:3.11-slim
 
 #Set working directory
 WORKDIR /code/
@@ -16,9 +16,14 @@ RUN pip install psycopg2-binary  # Adding psycopg2-binary for PostgreSQL support
 COPY ./src /code/src
 COPY ./templates /code/templates
 
-# Create a directory to hold the uploaded files
-RUN mkdir /code/temp
+# Create a directory for temporary files in /tmp which is more container-friendly
+RUN mkdir -p /tmp/microhap && chmod 777 /tmp/microhap
+ENV TEMP_UPLOAD_DIR=/tmp/microhap
 
+# Set environment variables for better container behavior
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
 
+EXPOSE 80
 #Command to run application
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "80"]
