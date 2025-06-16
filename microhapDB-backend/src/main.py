@@ -200,8 +200,6 @@ async def health_check():
             content=health_status
         )
     
-
-
     # Check temp directory access
     try:
         temp_dir = os.getenv('TEMP_UPLOAD_DIR', '/tmp/microhap')
