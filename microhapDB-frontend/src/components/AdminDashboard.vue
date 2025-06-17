@@ -9,7 +9,18 @@
         <div class="card mb-4">
           <h3 class="text-xl font-medium text-900 mb-3">Add New User</h3>
           <div class="formgrid grid">
-            <div class="field col-12 md:col-6">
+            <div class="field col-12 md:col-4">
+              <label for="fullName" class="block text-900 font-medium mb-2">Full Name</label>
+              <InputText 
+                id="fullName"
+                v-model="newUserFullName" 
+                placeholder="Enter full name"
+                class="w-full" 
+                :class="{ 'p-invalid': fullNameError }"
+              />
+              <small class="p-error" v-if="fullNameError">{{ fullNameError }}</small>
+            </div>
+            <div class="field col-12 md:col-4">
               <label for="orcid" class="block text-900 font-medium mb-2">ORCID</label>
               <InputText 
                 id="orcid"
@@ -20,7 +31,7 @@
               />
               <small class="p-error" v-if="orcidError">{{ orcidError }}</small>
             </div>
-            <div class="field col-12 md:col-4">
+            <div class="field col-12 md:col-3">
               <label for="role" class="block text-900 font-medium mb-2">Role</label>
               <Dropdown
                 id="role"
@@ -32,14 +43,73 @@
                 class="w-full"
               />
             </div>
-            <div class="field col-12 md:col-2 flex align-items-end">
+            <div class="field col-12 md:col-1 flex align-items-end">
               <Button 
-                label="Add User" 
+                label="Add" 
                 icon="pi pi-user-plus"
                 @click="addNewUser"
                 :loading="addingUser"
                 class="p-button-success w-full"
               />
+            </div>
+          </div>
+        </div>
+        
+        <!-- Bulk User Creation Section -->
+        <div class="card mb-4">
+          <h3 class="text-xl font-medium text-900 mb-3">Bulk User Creation</h3>
+          <div class="mb-3">
+            <p class="text-600 mb-2">
+              Create multiple users at once by providing CSV data. Format: Full Name, ORCID, Role
+            </p>
+            <small class="text-500">
+              Example: <code>John Doe, 0000-0000-0000-0001, private_user</code>
+            </small>
+          </div>
+          <div class="field">
+            <label for="bulkUserData" class="block text-900 font-medium mb-2">User Data (CSV Format)</label>
+            <Textarea 
+              id="bulkUserData"
+              v-model="bulkUserData" 
+              rows="5" 
+              class="w-full"
+              placeholder="John Doe, 0000-0000-0000-0001, private_user
+Jane Smith, 0000-0000-0000-0002, collaborator
+Admin User, 0000-0000-0000-0003, admin"
+            />
+          </div>
+          <div class="flex gap-2">
+            <Button 
+              label="Create Users" 
+              icon="pi pi-users"
+              @click="bulkCreateUsers"
+              :loading="bulkCreating"
+              class="p-button-info"
+              :disabled="!bulkUserData.trim()"
+            />
+            <Button 
+              label="Clear" 
+              icon="pi pi-times"
+              @click="bulkUserData = ''"
+              class="p-button-secondary"
+              :disabled="!bulkUserData.trim()"
+            />
+          </div>
+          <div v-if="bulkResults.length > 0" class="mt-4">
+            <h4 class="text-lg font-medium text-900 mb-2">Bulk Creation Results:</h4>
+            <div class="max-h-20rem overflow-auto">
+              <div 
+                v-for="(result, index) in bulkResults" 
+                :key="index"
+                class="flex align-items-center justify-content-between p-2 border-bottom-1 surface-border"
+                :class="result.success ? 'text-green-600' : 'text-red-600'"
+              >
+                <span>{{ result.name }} ({{ result.orcid }})</span>
+                <Tag 
+                  :value="result.success ? 'Success' : 'Failed'" 
+                  :severity="result.success ? 'success' : 'danger'"
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -141,16 +211,25 @@
             </Column>
             <Column 
               header="Actions" 
-              style="min-width: 100px"
+              style="min-width: 150px"
               :exportable="false"
             >
               <template #body="slotProps">
-                <Button 
-                  icon="pi pi-users"
-                  class="p-button-rounded p-button-info p-button-text"
-                  @click="showCollaboratorModal(slotProps.data)"
-                  v-tooltip.top="'Manage Collaborators'"
-                />
+                <div class="flex gap-1">
+                  <Button 
+                    icon="pi pi-users"
+                    class="p-button-rounded p-button-info p-button-text"
+                    @click="showCollaboratorModal(slotProps.data)"
+                    v-tooltip.top="'Manage Collaborators'"
+                  />
+                  <Button 
+                    icon="pi pi-trash"
+                    class="p-button-rounded p-button-danger p-button-text"
+                    @click="confirmDeleteUser(slotProps.data)"
+                    v-tooltip.top="'Delete User'"
+                    :disabled="slotProps.data.id === user?.id"
+                  />
+                </div>
               </template>
             </Column>
           </DataTable>
@@ -286,6 +365,42 @@
 
     <!-- Toast for notifications -->
     <Toast />
+    
+    <!-- Delete User Confirmation Dialog -->
+    <Dialog 
+      v-model:visible="showDeleteDialog" 
+      header="Confirm Delete User"
+      :modal="true"
+      :style="{ width: '450px' }"
+      class="p-fluid"
+    >
+      <div class="flex align-items-center mb-4">
+        <i class="pi pi-exclamation-triangle mr-3 text-orange-500" style="font-size: 2rem"></i>
+        <div>
+          <p class="mb-2">Are you sure you want to delete this user?</p>
+          <p class="font-medium text-900">{{ userToDelete?.full_name }}</p>
+          <p class="text-600">ORCID: {{ userToDelete?.orcid }}</p>
+          <p class="text-red-500 mt-2">
+            <strong>Warning:</strong> This action cannot be undone and will remove all associated data.
+          </p>
+        </div>
+      </div>
+      <template #footer>
+        <Button 
+          label="Cancel" 
+          icon="pi pi-times" 
+          @click="showDeleteDialog = false" 
+          class="p-button-text"
+        />
+        <Button 
+          label="Delete" 
+          icon="pi pi-trash" 
+          @click="deleteUser" 
+          class="p-button-danger"
+          :loading="deletingUser"
+        />
+      </template>
+    </Dialog>
   </div>
 </template>
 
@@ -309,9 +424,11 @@ export default {
       currentCollaborators: [],
       availableUsers: [],
       newCollaboratorId: null,
+      newUserFullName: '',
       newUserOrcid: '',
       newUserRole: null,
       addingUser: false,
+      fullNameError: '',
       orcidError: '',
       roleOptions: [
         { label: 'Admin', value: 'admin' },
@@ -328,7 +445,13 @@ export default {
       availablePersonalUsers: [],
       selectedPersonalUserId: '',
       loadingPersonalCollaborators: true,
-      error: null
+      error: null,
+      bulkUserData: '',
+      bulkCreating: false,
+      bulkResults: [],
+      showDeleteDialog: false,
+      userToDelete: null,
+      deletingUser: false
     };
   },
   computed: {
@@ -341,49 +464,69 @@ export default {
       return orcidPattern.test(orcid);
     },
     async addNewUser() {
-      if (!this.newUserOrcid || !this.newUserRole) {
+      // Reset previous errors
+      this.fullNameError = '';
+      this.orcidError = '';
+
+      // Validate all fields
+      if (!this.newUserFullName.trim()) {
+        this.fullNameError = 'Full name is required';
+      }
+
+      if (!this.newUserOrcid.trim()) {
+        this.orcidError = 'ORCID is required';
+      } else if (!this.validateOrcid(this.newUserOrcid)) {
+        this.orcidError = 'Invalid ORCID format. Use: 0000-0000-0000-0000';
+      }
+
+      if (!this.newUserRole) {
         this.toast.add({
           severity: 'error',
           summary: 'Error',
-          detail: 'Please fill in all fields',
+          detail: 'Please select a role',
           life: 3000
         });
         return;
       }
 
-      if (!this.validateOrcid(this.newUserOrcid)) {
-        this.orcidError = 'Invalid ORCID format. Use: 0000-0000-0000-0000';
+      // If there are validation errors, don't proceed
+      if (this.fullNameError || this.orcidError) {
         return;
       }
 
-      this.orcidError = '';
       this.addingUser = true;
 
       try {
-        // If the role is admin, we need to add them to admin ORCIDs first
-        if (this.newUserRole === 'admin') {
-          await axios.post('/auth/admin/orcids', this.newUserOrcid);
-        }
+        // Create user directly using the new endpoint
+        const userData = {
+          full_name: this.newUserFullName.trim(),
+          orcid: this.newUserOrcid,
+          role: this.newUserRole,
+          is_active: true
+        };
+
+        const response = await axios.post('/auth/admin/users', userData);
         
-        // The user will be created automatically when they first log in
-        // For now, we'll show a success message
         this.toast.add({
           severity: 'success',
           summary: 'Success',
-          detail: `User ORCID ${this.newUserOrcid} has been registered${this.newUserRole === 'admin' ? ' as admin' : ''}. They can now log in.`,
+          detail: `User "${response.data.full_name}" has been created successfully with role: ${response.data.role}`,
           life: 5000
         });
         
+        // Reset form
+        this.newUserFullName = '';
         this.newUserOrcid = '';
         this.newUserRole = null;
         
         // Refresh the user list
         await this.loadUsers();
       } catch (error) {
+        console.error('Error adding user:', error);
         this.toast.add({
           severity: 'error',
           summary: 'Error',
-          detail: error.response?.data?.detail || 'Failed to add user',
+          detail: error.response?.data?.detail || 'Failed to create user',
           life: 3000
         });
       } finally {
@@ -603,6 +746,85 @@ export default {
           return 'info';
         default:
           return 'success';
+      }
+    },
+    async bulkCreateUsers() {
+      this.bulkCreating = true;
+      this.bulkResults = [];
+      
+      try {
+        const response = await axios.post('/auth/admin/users/bulk', { 
+          data: this.bulkUserData 
+        });
+        
+        this.bulkResults = response.data;
+        
+        // Count successes and failures
+        const successCount = this.bulkResults.filter(r => r.success).length;
+        const failureCount = this.bulkResults.filter(r => !r.success).length;
+        
+        if (successCount > 0) {
+          this.toast.add({
+            severity: 'success',
+            summary: 'Bulk Creation Complete',
+            detail: `${successCount} user(s) created successfully${failureCount > 0 ? `, ${failureCount} failed` : ''}`,
+            life: 5000
+          });
+          
+          // Refresh the user list if any users were created
+          await this.loadUsers();
+          
+          // Clear the bulk data if all users were created successfully
+          if (failureCount === 0) {
+            this.bulkUserData = '';
+          }
+        } else {
+          this.toast.add({
+            severity: 'error',
+            summary: 'Bulk Creation Failed',
+            detail: `All ${failureCount} user creation(s) failed. Check the results below.`,
+            life: 5000
+          });
+        }
+        
+      } catch (error) {
+        console.error('Error bulk creating users:', error);
+        this.toast.add({
+          severity: 'error',
+          summary: 'Error',
+          detail: error.response?.data?.detail || 'Failed to create users',
+          life: 3000
+        });
+      } finally {
+        this.bulkCreating = false;
+      }
+    },
+    async confirmDeleteUser(user) {
+      this.userToDelete = user;
+      this.showDeleteDialog = true;
+    },
+    async deleteUser() {
+      this.deletingUser = true;
+      try {
+        await axios.delete(`/auth/admin/users/${this.userToDelete.id}`);
+        this.toast.add({
+          severity: 'success',
+          summary: 'Success',
+          detail: 'User deleted successfully',
+          life: 3000
+        });
+        await this.loadUsers();
+      } catch (error) {
+        console.error('Error deleting user:', error);
+        this.toast.add({
+          severity: 'error',
+          summary: 'Error',
+          detail: error.response?.data?.detail || 'Failed to delete user',
+          life: 3000
+        });
+      } finally {
+        this.showDeleteDialog = false;
+        this.deletingUser = false;
       }
     }
   },

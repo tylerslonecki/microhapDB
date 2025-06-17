@@ -17,6 +17,9 @@ import jwt
 from datetime import datetime, timedelta
 import time
 import asyncio
+from pydantic import BaseModel
+from typing import Optional
+from sqlalchemy import text
 
 router = APIRouter()
 
@@ -816,5 +819,283 @@ async def remove_admin_orcid(
     await db.commit()
     
     return {"message": f"ORCID {orcid} has been removed as an admin"}
+
+class CreateUserRequest(BaseModel):
+    full_name: str
+    orcid: str
+    role: UserRoleEnum = UserRoleEnum.PUBLIC
+    is_active: bool = True
+
+@router.post("/admin/users", response_model=UserResponse)
+async def create_user_directly(
+    user_data: CreateUserRequest,
+    current_user: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_session)
+):
+    """
+    Create a new user directly without requiring ORCID authentication.
+    Only admins can create users this way.
+    """
+    
+    # Validate ORCID format
+    import re
+    orcid_pattern = r'^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$'
+    if not re.match(orcid_pattern, user_data.orcid):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid ORCID format. Use: 0000-0000-0000-0000"
+        )
+    
+    # Check if user with this ORCID already exists
+    result = await db.execute(select(User).filter(User.orcid == user_data.orcid))
+    existing_user = result.scalar_one_or_none()
+    
+    if existing_user:
+        raise HTTPException(
+            status_code=400,
+            detail=f"User with ORCID {user_data.orcid} already exists"
+        )
+    
+    try:
+        # Create new user
+        new_user = User(
+            full_name=user_data.full_name,
+            orcid=user_data.orcid,
+            is_active=user_data.is_active,
+            role=user_data.role.value
+        )
+        
+        db.add(new_user)
+        await db.commit()
+        await db.refresh(new_user)
+        
+        # If the user is an admin, ensure they have an AdminOrcid entry
+        if new_user.role == UserRoleEnum.ADMIN.value:
+            admin_orcid = AdminOrcid(user_id=new_user.id, orcid=user_data.orcid)
+            db.add(admin_orcid)
+            await db.commit()
+        
+        logging.info(f"Admin {current_user.full_name} created new user: {new_user.full_name} ({new_user.role})")
+        
+        return new_user
+        
+    except Exception as e:
+        await db.rollback()
+        logging.error(f"Error creating user: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to create user"
+        )
+
+class BulkCreateUsersRequest(BaseModel):
+    data: str  # CSV data as string
+
+class BulkUserResult(BaseModel):
+    name: str
+    orcid: str
+    success: bool
+    message: str
+
+@router.post("/admin/users/bulk", response_model=List[BulkUserResult])
+async def bulk_create_users(
+    request: BulkCreateUsersRequest,
+    current_user: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_session)
+):
+    """
+    Bulk create users from CSV data.
+    Format: Full Name, ORCID, Role
+    """
+    import re
+    import csv
+    from io import StringIO
+    
+    results = []
+    orcid_pattern = r'^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$'
+    valid_roles = [role.value for role in UserRoleEnum]
+    
+    try:
+        # Parse CSV data
+        csv_data = StringIO(request.data)
+        reader = csv.reader(csv_data)
+        
+        for line_num, row in enumerate(reader, 1):
+            if len(row) < 3:
+                results.append(BulkUserResult(
+                    name=f"Line {line_num}",
+                    orcid="N/A",
+                    success=False,
+                    message="Invalid CSV format. Expected: Full Name, ORCID, Role"
+                ))
+                continue
+            
+            full_name = row[0].strip()
+            orcid = row[1].strip()
+            role = row[2].strip().lower()
+            
+            # Validate data
+            if not full_name:
+                results.append(BulkUserResult(
+                    name=f"Line {line_num}",
+                    orcid=orcid,
+                    success=False,
+                    message="Full name is required"
+                ))
+                continue
+            
+            if not re.match(orcid_pattern, orcid):
+                results.append(BulkUserResult(
+                    name=full_name,
+                    orcid=orcid,
+                    success=False,
+                    message="Invalid ORCID format"
+                ))
+                continue
+            
+            if role not in valid_roles:
+                results.append(BulkUserResult(
+                    name=full_name,
+                    orcid=orcid,
+                    success=False,
+                    message=f"Invalid role. Must be one of: {', '.join(valid_roles)}"
+                ))
+                continue
+            
+            # Check if user already exists
+            result = await db.execute(select(User).filter(User.orcid == orcid))
+            existing_user = result.scalar_one_or_none()
+            
+            if existing_user:
+                results.append(BulkUserResult(
+                    name=full_name,
+                    orcid=orcid,
+                    success=False,
+                    message="User with this ORCID already exists"
+                ))
+                continue
+            
+            # Create user
+            try:
+                new_user = User(
+                    full_name=full_name,
+                    orcid=orcid,
+                    is_active=True,
+                    role=role
+                )
+                
+                db.add(new_user)
+                await db.commit()
+                await db.refresh(new_user)
+                
+                # If admin, add to AdminOrcid table
+                if role == UserRoleEnum.ADMIN.value:
+                    admin_orcid = AdminOrcid(user_id=new_user.id, orcid=orcid)
+                    db.add(admin_orcid)
+                    await db.commit()
+                
+                results.append(BulkUserResult(
+                    name=full_name,
+                    orcid=orcid,
+                    success=True,
+                    message=f"User created with role: {role}"
+                ))
+                
+                logging.info(f"Admin {current_user.full_name} bulk created user: {full_name} ({role})")
+                
+            except Exception as e:
+                await db.rollback()
+                results.append(BulkUserResult(
+                    name=full_name,
+                    orcid=orcid,
+                    success=False,
+                    message=f"Database error: {str(e)}"
+                ))
+                logging.error(f"Error creating user {full_name}: {str(e)}")
+    
+    except Exception as e:
+        logging.error(f"Error parsing bulk user data: {str(e)}")
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid CSV data format"
+        )
+    
+    return results
+
+@router.delete("/admin/users/{user_id}")
+async def delete_user(
+    user_id: int,
+    current_user: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_session)
+):
+    """
+    Delete a user and all associated data.
+    Only admins can delete users.
+    """
+    
+    # Check if user exists
+    result = await db.execute(select(User).filter(User.id == user_id))
+    user_to_delete = result.scalar_one_or_none()
+    
+    if not user_to_delete:
+        raise HTTPException(
+            status_code=404,
+            detail="User not found"
+        )
+    
+    # Prevent self-deletion
+    if user_to_delete.id == current_user.id:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot delete your own account"
+        )
+    
+    try:
+        # Delete associated records first (due to foreign key constraints)
+        
+        # Delete user tokens
+        await db.execute(
+            text("DELETE FROM user_tokens WHERE user_id = :user_id"),
+            {"user_id": user_id}
+        )
+        
+        # Delete collaborations where this user is involved
+        await db.execute(
+            text("DELETE FROM collaborations WHERE user_id = :user_id OR collaborator_id = :user_id"),
+            {"user_id": user_id}
+        )
+        
+        # Delete admin orcid record if exists
+        await db.execute(
+            text("DELETE FROM admin_orcids WHERE user_id = :user_id"),
+            {"user_id": user_id}
+        )
+        
+        # Delete database versions uploaded by this user
+        await db.execute(
+            text("UPDATE database_versions SET uploaded_by = NULL WHERE uploaded_by = :user_id"),
+            {"user_id": user_id}
+        )
+        
+        # Delete file uploads by this user  
+        await db.execute(
+            text("UPDATE file_uploads SET uploaded_by = NULL WHERE uploaded_by = :user_id"),
+            {"user_id": user_id}
+        )
+        
+        # Finally delete the user
+        await db.delete(user_to_delete)
+        await db.commit()
+        
+        logging.info(f"Admin {current_user.full_name} deleted user: {user_to_delete.full_name} ({user_to_delete.orcid})")
+        
+        return {"message": f"User {user_to_delete.full_name} has been successfully deleted"}
+        
+    except Exception as e:
+        await db.rollback()
+        logging.error(f"Error deleting user {user_to_delete.full_name}: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to delete user"
+        )
 
 # response = RedirectResponse(url="http://localhost:8080")
