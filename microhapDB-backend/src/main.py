@@ -100,6 +100,7 @@ async def initialize_admin_orcids():
             admin_orcid_list = [
                 '0000-0002-4762-3518',
                 '0009-0007-0977-7798',  # Your ORCID
+                '0009-0004-7542-9036',  # Additional admin ORCID
                 # Add more admin ORCIDs as needed
             ]
             

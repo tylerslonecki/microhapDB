@@ -598,6 +598,7 @@ export default {
   }
 }
 
+
 /* Optional: Hide overlay on mobile */
 @media (max-width: 768px) {
   .fixed.inset-0.bg-black.opacity-50.z-900 {
