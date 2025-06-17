@@ -199,7 +199,6 @@ async def health_check():
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             content=health_status
         )
-    
     # Check temp directory access
     try:
         temp_dir = os.getenv('TEMP_UPLOAD_DIR', '/tmp/microhap')
