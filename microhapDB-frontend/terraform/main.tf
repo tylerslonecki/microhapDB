@@ -210,4 +210,64 @@ resource "aws_s3_bucket_policy" "frontend_cloudfront" {
       }
     ]
   })
+}
+
+# CloudFront Distribution for Backend API
+resource "aws_cloudfront_distribution" "backend_api" {
+  origin {
+    domain_name = var.backend_domain
+    origin_id   = "backend-api"
+    
+    custom_origin_config {
+      http_port              = 80
+      https_port             = 443
+      origin_protocol_policy = "http-only"
+      origin_ssl_protocols   = ["TLSv1.2"]
+    }
+  }
+
+  enabled = true
+  comment = "MicrohapDB Backend API Distribution"
+
+  # Cache behavior for API endpoints (no caching)
+  default_cache_behavior {
+    allowed_methods        = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
+    cached_methods         = ["GET", "HEAD", "OPTIONS"]
+    target_origin_id       = "backend-api"
+    compress               = true
+    viewer_protocol_policy = "redirect-to-https"
+
+    forwarded_values {
+      query_string = true
+      headers      = ["*"]
+      cookies {
+        forward = "all"
+      }
+    }
+
+    min_ttl     = 0
+    default_ttl = 0    # No caching for API
+    max_ttl     = 0    # No caching for API
+  }
+
+  # Price class (use only North America and Europe for cost optimization)
+  price_class = "PriceClass_100"
+
+  # Geographic restrictions
+  restrictions {
+    geo_restriction {
+      restriction_type = "none"
+    }
+  }
+
+  # SSL Certificate
+  viewer_certificate {
+    cloudfront_default_certificate = true
+  }
+
+  tags = {
+    Name        = "MicrohapDB Backend API Distribution"
+    Environment = var.environment
+    Project     = var.project_name
+  }
 } 

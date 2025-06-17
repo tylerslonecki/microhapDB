@@ -35,13 +35,28 @@ output "cloudfront_distribution_arn" {
   value       = aws_cloudfront_distribution.frontend.arn
 }
 
+output "backend_cloudfront_distribution_id" {
+  description = "Backend CloudFront distribution ID"
+  value       = aws_cloudfront_distribution.backend_api.id
+}
+
+output "backend_cloudfront_domain_name" {
+  description = "Backend CloudFront distribution domain name"
+  value       = aws_cloudfront_distribution.backend_api.domain_name
+}
+
+output "backend_api_url" {
+  description = "Backend API URL (HTTPS via CloudFront)"
+  value       = "https://${aws_cloudfront_distribution.backend_api.domain_name}"
+}
+
 # Output for GitHub Actions secrets
 output "github_secrets" {
   description = "Values needed for GitHub Actions secrets"
   value = {
     S3_BUCKET_NAME             = aws_s3_bucket.frontend.bucket
     CLOUDFRONT_DISTRIBUTION_ID = aws_cloudfront_distribution.frontend.id
-    VUE_APP_BACKEND_URL        = var.backend_url
+    VUE_APP_BACKEND_URL        = "https://${aws_cloudfront_distribution.backend_api.domain_name}"
     FRONTEND_URL               = "https://${aws_cloudfront_distribution.frontend.domain_name}"
   }
   sensitive = false

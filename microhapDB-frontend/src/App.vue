@@ -14,6 +14,7 @@
         </div>
       </template>
 
+      
       <!-- End Slot: User Dropdown -->
       <template #end>
         <Dropdown

@@ -33,7 +33,13 @@ variable "certificate_arn" {
 variable "backend_url" {
   description = "Backend API URL for CORS configuration"
   type        = string
-  default     = "http://18.117.136.223"
+  default     = "http://54.196.254.13"
+}
+
+variable "backend_domain" {
+  description = "Backend domain for CloudFront origin"
+  type        = string
+  default     = "ec2-54-196-254-13.compute-1.amazonaws.com"
 }
 
 # Tags to apply to all resources
