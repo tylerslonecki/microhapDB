@@ -605,5 +605,4 @@ export default {
   }
 }
 
-
 </style>
