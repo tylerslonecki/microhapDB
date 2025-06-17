@@ -306,7 +306,7 @@
           const alleleIds = this.getSelectedSequences.map(seq => seq.alleleid);
           console.log("Fetching details for allele IDs:", alleleIds);
           
-          const { data } = await axiosInstance.post("posts/alleleAccessions/", {
+          const { data } = await axiosInstance.post("posts/alleleAccessions", {
             alleleid: alleleIds,
           });
           

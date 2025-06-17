@@ -144,7 +144,7 @@ export default {
       this.loading = true;
       try {
         const alleleIds = this.getSelectedSequences.map(seq => seq.alleleid);
-        const response = await axiosInstance.post('posts/alleleAccessions/', {
+        const response = await axiosInstance.post('posts/alleleAccessions', {
           alleleid: alleleIds
         });
         const alleleToAccessions = {};

@@ -1678,11 +1678,11 @@ async function fetchAccessionsForAllele(alleleId) {
       dotParts: alleleId.split('.')
     });
     
-    console.log(`📤 Making API call to /posts/alleleAccessions/ with payload:`, {
+    console.log(`📤 Making API call to /posts/alleleAccessions with payload:`, {
       alleleid: [alleleId]
     });
     
-    const response = await axiosInstance.post('/posts/alleleAccessions/', {
+    const response = await axiosInstance.post('/posts/alleleAccessions', {
       alleleid: [alleleId]
     });
     
@@ -1719,7 +1719,7 @@ async function fetchAccessionsForAllele(alleleId) {
           const workingAlleleId = testResponse.data.items[0].alleleid;
           console.log(`🧪 Testing API with known working AlleleID: ${workingAlleleId}`);
           
-          const testAccessionsResponse = await axiosInstance.post('/posts/alleleAccessions/', {
+          const testAccessionsResponse = await axiosInstance.post('/posts/alleleAccessions', {
             alleleid: [workingAlleleId]
           });
           
