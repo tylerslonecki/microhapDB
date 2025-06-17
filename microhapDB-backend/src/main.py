@@ -5,46 +5,34 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 import logging  # Import standard logging module
-import asyncio
 
 # Load .env file from the same directory as main.py
 env_path = Path(__file__).parent / '.env'
 load_dotenv(dotenv_path=env_path)
 
-from fastapi import FastAPI, Depends, status, HTTPException
+from fastapi import FastAPI, Depends, status
 from fastapi.responses import RedirectResponse, JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
-from starlette.responses import Response
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
-from sqlalchemy.exc import SQLAlchemyError
-from greenlet import MissingGreenlet
 from src.auth.router import router as auth_router
 from src.aws.router import router as aws_router
 from src.posts.router import router as posts_router
+from src.models import AdminOrcid, User
+from src.database import init_db, AsyncSessionLocal
+from fastapi.middleware.cors import CORSMiddleware
 from src.auth.dependencies import get_current_user, get_admin_user
 from src.auth.models import UserResponse
-from src.models import User, AdminOrcid, UserRoleEnum
-from src.database import init_db, AsyncSessionLocal
+import asyncio
 from datetime import datetime, timedelta
+import time
+from sqlalchemy.future import select
+from src.auth.models import UserRoleEnum
+from starlette.middleware.base import BaseHTTPMiddleware
+from sqlalchemy.exc import MissingGreenlet, SQLAlchemyError
+from starlette.responses import Response
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+from src.posts.router import jobs
 
-# Global job storage (in production, consider using Redis)
-jobs = {}
 
-app = FastAPI(
-    title="MicrohapDB API",
-    description="API for managing microhaplotype data",
-    version="1.0.0"
-)
+app = FastAPI(title="Microhaplotype Database", version="0.1.0")
 
 # Add middleware to handle SQLAlchemy async context
 class SQLAlchemyMiddleware(BaseHTTPMiddleware):
@@ -61,22 +49,7 @@ class SQLAlchemyMiddleware(BaseHTTPMiddleware):
                 status_code=500
             )
 
-class HTTPSRedirectMiddleware(BaseHTTPMiddleware):
-    """Middleware to ensure redirects use HTTPS when behind CloudFront"""
-    async def dispatch(self, request: Request, call_next):
-        # Check if we're behind CloudFront (HTTPS proxy)
-        cloudfront_proto = request.headers.get("cloudfront-forwarded-proto")
-        x_forwarded_proto = request.headers.get("x-forwarded-proto")
-        
-        # If we're behind HTTPS proxy, modify the request scope
-        if cloudfront_proto == "https" or x_forwarded_proto == "https":
-            request.scope["scheme"] = "https"
-        
-        response = await call_next(request)
-        return response
-
 app.add_middleware(SQLAlchemyMiddleware)
-app.add_middleware(HTTPSRedirectMiddleware)
 
 # Configure CORS
 app.add_middleware(
