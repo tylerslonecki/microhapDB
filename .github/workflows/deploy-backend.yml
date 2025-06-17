@@ -57,6 +57,7 @@ jobs:
         ORCID_REDIRECT_URI: ${{ secrets.ORCID_REDIRECT_URI }}
         SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
         IMAGE_TAG: ${{ github.sha }}
+        FRONTEND_URL: ${{ secrets.FRONTEND_URL }}
       run: |
         # Get instance information
         PUBLIC_IP=$(aws ec2 describe-instances \
@@ -120,6 +121,7 @@ jobs:
           -e "ORCID_CLIENT_ID=$ORCID_CLIENT_ID" \
           -e "ORCID_CLIENT_SECRET=$ORCID_CLIENT_SECRET" \
           -e "ORCID_REDIRECT_URI=$ORCID_REDIRECT_URI" \
+          -e "FRONTEND_URL=$FRONTEND_URL" \
           -e "ENVIRONMENT=production" \
           ghcr.io/tylerslonecki/haplosearch:latest
         
@@ -144,6 +146,7 @@ jobs:
            ORCID_CLIENT_ID='$ORCID_CLIENT_ID' \
            ORCID_CLIENT_SECRET='$ORCID_CLIENT_SECRET' \
            ORCID_REDIRECT_URI='$ORCID_REDIRECT_URI' \
+           FRONTEND_URL='$FRONTEND_URL' \
            ./update_container.sh"
         
         # Test deployment
@@ -166,12 +169,14 @@ jobs:
 
     - name: 📊 Deployment Summary
       if: success()
+      env:
+        PUBLIC_IP: ${{ env.PUBLIC_IP }}
       run: |
         echo "## 🎉 HaploSearch Backend Deployment Successful!" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### 🔗 Quick Links" >> $GITHUB_STEP_SUMMARY
-        echo "- [🏥 Health Check](http://18.117.136.223/health)" >> $GITHUB_STEP_SUMMARY
-        echo "- [📚 API Documentation](http://18.117.136.223/docs)" >> $GITHUB_STEP_SUMMARY
+        echo "- [🏥 Health Check](http://54.196.254.13/health)" >> $GITHUB_STEP_SUMMARY
+        echo "- [📚 API Documentation](http://54.196.254.13/docs)" >> $GITHUB_STEP_SUMMARY
         echo "- [🖥️ EC2 Console](https://us-east-1.console.aws.amazon.com/ec2/home?region=us-east-1#Instances:instanceId=${{ secrets.EC2_INSTANCE_ID }})" >> $GITHUB_STEP_SUMMARY
         echo "- [📦 Container Registry](https://github.com/${{ github.repository_owner }}/microhapDB/pkgs/container/haplosearch)" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY

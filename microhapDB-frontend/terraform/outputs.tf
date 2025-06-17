@@ -42,6 +42,7 @@ output "github_secrets" {
     S3_BUCKET_NAME             = aws_s3_bucket.frontend.bucket
     CLOUDFRONT_DISTRIBUTION_ID = aws_cloudfront_distribution.frontend.id
     VUE_APP_BACKEND_URL        = var.backend_url
+    FRONTEND_URL               = "https://${aws_cloudfront_distribution.frontend.domain_name}"
   }
   sensitive = false
 } 
