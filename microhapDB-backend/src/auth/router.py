@@ -223,7 +223,33 @@ async def orcid_callback(code: str, response: Response, db: AsyncSession = Depen
         return RedirectResponse(url=error_redirect_url)
 
 @router.get("/status")
-async def auth_status(request: Request, db: AsyncSession = Depends(get_session)):
+async def auth_status(current_user: User = Depends(get_current_user)):
+    """
+    Get the current user's authentication status and role information.
+    Requires valid authentication.
+    """
+    try:
+        # Since we're using get_current_user dependency, we know the user is authenticated
+        return {
+            "is_authenticated": True,
+            "is_admin": current_user.is_admin,
+            "username": current_user.full_name,
+            "role": current_user.role
+        }
+    except Exception as e:
+        logging.error(f"Unexpected error in auth_status: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error"
+        )
+
+@router.get("/check")
+async def check_auth_status(request: Request, db: AsyncSession = Depends(get_session)):
+    """
+    Check authentication status without requiring authentication.
+    Returns authentication status and user info if authenticated, or unauthenticated status if not.
+    This endpoint is used by the frontend to determine login state.
+    """
     try:
         auth_header = request.headers.get("Authorization")
         token = None
@@ -289,7 +315,7 @@ async def auth_status(request: Request, db: AsyncSession = Depends(get_session))
         }
 
     except Exception as e:
-        logging.error(f"Unexpected error in auth_status: {str(e)}", exc_info=True)
+        logging.error(f"Unexpected error in check_auth_status: {str(e)}", exc_info=True)
         return {
             "is_authenticated": False,
             "message": f"Internal server error: {str(e)}"
