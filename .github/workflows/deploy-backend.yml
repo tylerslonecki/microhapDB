@@ -25,7 +25,7 @@ jobs:
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: us-east-2
+        aws-region: us-east-1
         
     - name: 🐳 Login to GitHub Container Registry
       uses: docker/login-action@v3
@@ -50,7 +50,7 @@ jobs:
     - name: 🚀 Deploy to EC2
       env:
         INSTANCE_ID: ${{ secrets.EC2_INSTANCE_ID }}
-        AWS_REGION: us-east-2
+        AWS_REGION: us-east-1
         DATABASE_URL: ${{ secrets.DATABASE_URL }}
         ORCID_CLIENT_ID: ${{ secrets.ORCID_CLIENT_ID }}
         ORCID_CLIENT_SECRET: ${{ secrets.ORCID_CLIENT_SECRET }}
@@ -172,7 +172,7 @@ jobs:
         echo "### 🔗 Quick Links" >> $GITHUB_STEP_SUMMARY
         echo "- [🏥 Health Check](http://18.117.136.223/health)" >> $GITHUB_STEP_SUMMARY
         echo "- [📚 API Documentation](http://18.117.136.223/docs)" >> $GITHUB_STEP_SUMMARY
-        echo "- [🖥️ EC2 Console](https://us-east-2.console.aws.amazon.com/ec2/home?region=us-east-2#Instances:instanceId=${{ secrets.EC2_INSTANCE_ID }})" >> $GITHUB_STEP_SUMMARY
+        echo "- [🖥️ EC2 Console](https://us-east-1.console.aws.amazon.com/ec2/home?region=us-east-1#Instances:instanceId=${{ secrets.EC2_INSTANCE_ID }})" >> $GITHUB_STEP_SUMMARY
         echo "- [📦 Container Registry](https://github.com/${{ github.repository_owner }}/microhapDB/pkgs/container/haplosearch)" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### 📋 Deployment Details" >> $GITHUB_STEP_SUMMARY
