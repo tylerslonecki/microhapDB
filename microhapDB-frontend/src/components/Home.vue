@@ -122,20 +122,14 @@
 
 <script>
 import { mapState, mapGetters, mapActions } from 'vuex';
-import Dropdown from 'primevue/dropdown';
-import Menubar from 'primevue/menubar';
 import Button from 'primevue/button';
-import Sidebar from 'primevue/sidebar';
 import axios from 'axios';
 import AuthGuard from '@/components/AuthGuard.vue';
 
 export default {
   name: 'HomePage',
   components: {
-    Dropdown,
-    Menubar,
     Button,
-    Sidebar,
     AuthGuard,
   },
   computed: {
