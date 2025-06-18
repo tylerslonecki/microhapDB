@@ -124,13 +124,11 @@
 import { mapState, mapGetters, mapActions } from 'vuex';
 import Button from 'primevue/button';
 import axios from 'axios';
-import AuthGuard from '@/components/AuthGuard.vue';
 
 export default {
   name: 'HomePage',
   components: {
     Button,
-    AuthGuard,
   },
   computed: {
     ...mapState('auth', ['isAuthenticated', 'user']),
