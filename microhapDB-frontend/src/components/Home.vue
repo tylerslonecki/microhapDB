@@ -23,25 +23,85 @@
         <div class="feature-card">
           <i class="pi pi-search feature-icon"></i>
           <h3>Query Microhaplotypes</h3>
-          <p>Search and filter microhaplotype records by species, allele ID, sequence, info field, and associated traits with paginated results and CSV export. View detailed allele information, analyze shared vs. combined accessions across selected markers, and export accession data for further analysis.</p>
+          <p><strong>Search and filter</strong> microhaplotype records by species, allele ID, sequence, info field, and associated traits with <strong>paginated results</strong> and <strong>CSV export</strong>. View <strong>detailed allele information</strong>, analyze <strong>shared vs. combined accessions</strong> across selected markers, and export accession data for further analysis.</p>
+          <div class="card-action">
+            <Button 
+              label="Start Querying" 
+              icon="pi pi-search" 
+              @click="$router.push('/query')"
+              class="p-button-sm"
+            />
+          </div>
         </div>
         
         <div class="feature-card">
           <i class="pi pi-database feature-icon"></i>
           <h3>Database Insights</h3>
-          <p>View database growth over time with allele count statistics by version, program contributions, file upload history, and downloadable reports</p>
+          <p>View <strong>database growth over time</strong> with allele count statistics by version, <strong>program contributions</strong>, <strong>file upload history</strong>, and <strong>downloadable reports</strong></p>
+          <div class="card-action">
+            <Button 
+              label="View Reports" 
+              icon="pi pi-chart-line" 
+              @click="$router.push('/report')"
+              class="p-button-sm"
+            />
+          </div>
         </div>
         
         <div class="feature-card">
           <i class="pi pi-chart-line feature-icon"></i>
           <h3>Missing Alleles Analysis</h3>
-          <p>Compare program datasets against the complete database to identify missing alleles by chromosome and locus. Interactive genome visualization shows diversity patterns and coverage gaps, with detailed missing allele lists and direct integration to query workflows.</p>
+          <p><strong>Compare program datasets</strong> against the complete database to identify <strong>missing alleles</strong> by chromosome and locus. <strong>Interactive genome visualization</strong> shows diversity patterns and coverage gaps, with <strong>detailed missing allele lists</strong> and <strong>direct integration to query workflows</strong>.</p>
+          <div class="card-action">
+            <Button 
+              label="Analyze Missing Alleles" 
+              icon="pi pi-chart-bar" 
+              @click="$router.push('/visualizations-comparative')"
+              class="p-button-sm"
+            />
+          </div>
         </div>
         
         <div v-if="canAccessPrivateData" class="feature-card">
           <i class="pi pi-cloud-upload feature-icon"></i>
           <h3>Data Contribution</h3>
-          <p>Contribute microhaplotype datasets to HaploSearch and expand the database with new markers</p>
+          <p><strong>Contribute microhaplotype datasets</strong> to HaploSearch and <strong>expand the database</strong> with new markers</p>
+          <div class="card-action">
+            <Button 
+              label="Upload Data" 
+              icon="pi pi-upload" 
+              @click="$router.push('/data-upload')"
+              class="p-button-sm"
+            />
+          </div>
+        </div>
+        
+        <div v-if="userRole === 'private_user'" class="feature-card">
+          <i class="pi pi-users feature-icon"></i>
+          <h3>Privacy & Collaborators</h3>
+          <p><strong>Manage collaborators</strong> to share private datasets, <strong>coordinate research projects</strong>, and <strong>control access</strong> to sensitive genetic data</p>
+          <div class="card-action">
+            <Button 
+              label="Manage Privacy" 
+              icon="pi pi-users" 
+              @click="$router.push('/user-management')"
+              class="p-button-sm"
+            />
+          </div>
+        </div>
+        
+        <div v-if="isAdmin" class="feature-card">
+          <i class="pi pi-cog feature-icon"></i>
+          <h3>System Administration</h3>
+          <p><strong>Manage user accounts</strong>, oversee data uploads, <strong>monitor system performance</strong>, and maintain <strong>database integrity and security</strong></p>
+          <div class="card-action">
+            <Button 
+              label="Admin Dashboard" 
+              icon="pi pi-cog" 
+              @click="$router.push('/admin')"
+              class="p-button-sm"
+            />
+          </div>
         </div>
       </div>
     </div>
@@ -50,24 +110,7 @@
       <div class="login-info">
         <h3>Get Started with HaploSearch</h3>
         <p>Sign in with your ORCID ID to access the full suite of microhaplotype research tools</p>
-        <div class="login-benefits">
-          <div class="benefit-item">
-            <i class="pi pi-check-circle"></i>
-            <span>Access to comprehensive microhaplotype database</span>
-          </div>
-          <div class="benefit-item">
-            <i class="pi pi-check-circle"></i>
-            <span>Advanced query and filtering capabilities</span>
-          </div>
-          <div class="benefit-item">
-            <i class="pi pi-check-circle"></i>
-            <span>Interactive data visualizations and analytics</span>
-          </div>
-          <div class="benefit-item">
-            <i class="pi pi-check-circle"></i>
-            <span>Population genetics and forensic research tools</span>
-          </div>
-        </div>
+        
       </div>
       <button @click="login" class="login-button">
         <i class="pi pi-sign-in"></i>
@@ -79,10 +122,22 @@
 
 <script>
 import { mapState, mapGetters, mapActions } from 'vuex';
+import Dropdown from 'primevue/dropdown';
+import Menubar from 'primevue/menubar';
+import Button from 'primevue/button';
+import Sidebar from 'primevue/sidebar';
 import axios from 'axios';
+import AuthGuard from '@/components/AuthGuard.vue';
 
 export default {
   name: 'HomePage',
+  components: {
+    Dropdown,
+    Menubar,
+    Button,
+    Sidebar,
+    AuthGuard,
+  },
   computed: {
     ...mapState('auth', ['isAuthenticated', 'user']),
     ...mapGetters('auth', ['isAdmin', 'canAccessPrivateData', 'userRole']),
@@ -297,6 +352,8 @@ export default {
   min-width: 280px;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
   transition: transform 0.3s ease, box-shadow 0.3s ease;
+  display: flex;
+  flex-direction: column;
 }
 
 .feature-card:hover {
@@ -319,6 +376,19 @@ export default {
 .feature-card p {
   color: var(--text-color-secondary);
   line-height: 1.5;
+  flex-grow: 1;
+  margin-bottom: 1rem;
+}
+
+.card-action {
+  margin-top: auto;
+  padding-top: 1rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.card-action .p-button {
+  width: 100%;
+  justify-content: center;
 }
 
 .auth-section {
