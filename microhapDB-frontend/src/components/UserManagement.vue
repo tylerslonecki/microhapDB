@@ -8,7 +8,7 @@
         <div class="p-4 surface-100 border-round">
           <div class="flex align-items-center mb-3">
             <i class="pi pi-shield mr-3 text-2xl text-blue-500"></i>
-            <h3 class="text-xl font-medium text-900 mb-0">Data Privacy & Sharing</h3>
+            <h3 class="text-xl font-medium text-900 mb-0">Data Privacy & Sharing Classifications</h3>
           </div>
           <div class="grid">
             <div class="col-12 md:col-4 mb-3">
@@ -17,12 +17,16 @@
                   <i class="pi pi-eye text-green-600 mr-2"></i>
                   <h4 class="text-lg font-medium text-900 mb-0">Public Data</h4>
                 </div>
-                <p class="text-600 text-sm mb-0">
-                  • Published datasets<br>
-                  • Database reports and statistics<br>
-                  • General query results<br>
-                  • Public research data
-                </p>
+                <p class="text-600 text-sm mb-2">Available to all users and researchers:</p>
+                <ul class="text-600 text-sm mb-0 pl-3">
+                  <li><strong>AlleleIDs</strong> - Unique identifiers</li>
+                  <li><strong>Allele Sequences</strong> - Genetic sequences</li>
+                  <li><strong>Info field</strong> - General information</li>
+                  <li><strong>Institution</strong> - Contributing organizations</li>
+                  <li><strong>Project</strong> - Research project names</li>
+                  <li>Database reports and statistics</li>
+                  <li>General query results</li>
+                </ul>
               </div>
             </div>
             <div class="col-12 md:col-4 mb-3">
@@ -31,12 +35,15 @@
                   <i class="pi pi-users text-blue-600 mr-2"></i>
                   <h4 class="text-lg font-medium text-900 mb-0">Shared with Collaborators</h4>
                 </div>
-                <p class="text-600 text-sm mb-0">
-                  • Your private data uploads<br>
-                  • Collaborative research projects<br>
-                  • Shared analysis results<br>
-                  • Private datasets you've shared
-                </p>
+                <p class="text-600 text-sm mb-2">Visible to you and your collaborators only:</p>
+                <ul class="text-600 text-sm mb-0 pl-3">
+                  <li><strong>Program</strong> - Internal program classifications</li>
+                  <li>Your private data uploads</li>
+                  <li>Collaborative research projects</li>
+                  <li>Shared analysis results</li>
+                  <li>Private datasets you've shared</li>
+                  <li>Research notes and annotations</li>
+                </ul>
               </div>
             </div>
             <div class="col-12 md:col-4 mb-3">
@@ -45,13 +52,16 @@
                   <i class="pi pi-lock text-red-600 mr-2"></i>
                   <h4 class="text-lg font-medium text-900 mb-0">Always Private</h4>
                 </div>
-                <p class="text-600 text-sm mb-0">
-                  • Your account details<br>
-                  • Personal settings and preferences<br>
-                  • Upload history and metadata<br>
-                  • Collaboration relationships<br>
-                  <small class="text-red-500">*Visible only to administrators</small>
-                </p>
+                <p class="text-600 text-sm mb-2">Visible only to you (and administrators):</p>
+                <ul class="text-600 text-sm mb-0 pl-3">
+                  <li><strong>Associated traits</strong> - Phenotypic data</li>
+                  <li><strong>Accessions</strong> - Sample identifiers</li>
+                  <li>Your account details</li>
+                  <li>Personal settings and preferences</li>
+                  <li>Upload history and metadata</li>
+                  <li>Collaboration relationships</li>
+                </ul>
+                <small class="text-red-500 block mt-2">*System administrators can view all data for database management purposes</small>
               </div>
             </div>
           </div>
