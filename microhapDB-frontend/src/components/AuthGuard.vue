@@ -58,6 +58,17 @@ export default {
       if (!this.requireAuth) return true;
       if (!this.requiredRole && this.requiredRoles.length === 0) return true;
       
+      // Check if user has one of the required roles in the array (exact match)
+      if (this.requiredRoles && this.requiredRoles.length > 0) {
+        return this.requiredRoles.includes(this.role);
+      }
+      
+      // For admin role requirement, use exact match (no hierarchy)
+      if (this.requiredRole === 'admin') {
+        return this.role === 'admin';
+      }
+      
+      // For other roles, use hierarchy system
       const roleHierarchy = {
         admin: 3,
         private_user: 2,
@@ -65,12 +76,6 @@ export default {
         public: 0
       };
       
-      // Check if user has one of the required roles in the array
-      if (this.requiredRoles && this.requiredRoles.length > 0) {
-        return this.requiredRoles.includes(this.role);
-      }
-      
-      // Fall back to single role check
       return roleHierarchy[this.role] >= roleHierarchy[this.requiredRole];
     }
   },

@@ -253,7 +253,7 @@ Admin User, 0000-0000-0000-0003, admin"
       </div>
 
       <!-- Personal Collaborator Management Section -->
-      <div v-if="userRole === 'admin' || userRole === 'private_user'" class="card">
+      <div v-if="userRole === 'admin'" class="card">
         <h3 class="text-xl font-medium text-900 mb-3">My Collaborators</h3>
         <ProgressSpinner v-if="loadingPersonalCollaborators" class="w-4rem h-4rem" />
         <div v-else-if="personalCollaborators.length === 0" class="surface-200 border-round p-4">
@@ -847,8 +847,8 @@ export default {
         await this.loadUsers();
       }
       
-      // Load personal collaborators for both admin and private users
-      if (this.userRole === 'admin' || this.userRole === 'private_user') {
+      // Load personal collaborators for admin users only
+      if (this.userRole === 'admin') {
         await Promise.all([
           this.loadPersonalCollaborators(),
           this.loadAvailablePersonalUsers()

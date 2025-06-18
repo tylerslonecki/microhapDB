@@ -220,11 +220,19 @@ export default {
           route: '/report',
         },
         {
+          label: 'User Management',
+          icon: 'pi pi-users',
+          route: '/user-management',
+          // Only visible to private users (non-admin)
+          visible: this.userRole === 'private_user',
+          requiresAuth: true,
+        },
+        {
           label: 'Admin',
           icon: 'pi pi-cog',
           isOpen: false,
-          // Only visible if the user is an admin or private user (for User Management)
-          visible: this.isAdmin || this.canAccessPrivateData,
+          // Only visible if the user is an admin (removed private_user access)
+          visible: this.isAdmin,
           subItems: [
             {
               label: 'Data Upload',
@@ -237,8 +245,8 @@ export default {
               label: 'Admin Dashboard',
               icon: 'pi pi-th-large',
               route: '/admin',
-              // Visible to both admin and private users
-              visible: this.isAdmin || this.canAccessPrivateData,
+              // Only visible to admin users
+              visible: this.isAdmin,
             }
           ]
         },
@@ -316,9 +324,14 @@ export default {
     buildMenus() {
       // Update visibility based on authentication and admin status
       this.sidebarItems.forEach((item) => {
+        // Handle user management for private users
+        if (item.label === 'User Management') {
+          item.visible = this.userRole === 'private_user';
+        }
+        
         // Handle admin-only items
         if (item.label === 'Admin') {
-          item.visible = this.isAdmin || this.canAccessPrivateData;
+          item.visible = this.isAdmin;
           
           // Handle submenu items visibility
           if (item.subItems) {
@@ -326,7 +339,7 @@ export default {
               if (subItem.label === 'System Administration' || subItem.label === 'Admin Dashboard') {
                 subItem.visible = this.isAdmin;
               } else if (subItem.label === 'User Management') {
-                subItem.visible = this.isAdmin || this.canAccessPrivateData;
+                subItem.visible = this.isAdmin;
               }
             });
           }

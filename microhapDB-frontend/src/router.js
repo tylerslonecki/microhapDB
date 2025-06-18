@@ -73,6 +73,12 @@ const routes = [
     component: Report
   },
   {
+    path: '/user-management',
+    name: 'UserManagement',
+    component: () => import('./components/UserManagement.vue'),
+    meta: { requiresAuth: true, requiredRole: 'private_user' }
+  },
+  {
     path: '/admin',
     name: 'AdminDashboard',
     component: AdminDashboard,
