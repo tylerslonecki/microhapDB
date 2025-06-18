@@ -1005,54 +1005,8 @@ async def get_sequences(
                 elif field == 'associated_trait':
                     query = query.where(Sequence.associated_trait.ilike(f"%{filter_obj.value}%"))
 
-    # Apply role-based access control filtering - OPTIMIZED
-    if not current_user.is_admin:
-        # Pre-compute accessible user IDs to avoid repeated subqueries
-        collaborator_ids = [collaboration.user_id for collaboration in current_user.collaborator_in]
-        accessible_ids = [current_user.id] + collaborator_ids
-        
-        # Create a more efficient access control filter
-        access_conditions = []
-        
-        if current_user.role == UserRoleEnum.PUBLIC:
-            # Public users can only see data uploaded by public users
-            access_conditions.append(
-                Sequence.version_added.in_(
-                    select(DatabaseVersion.version).where(
-                        and_(
-                            DatabaseVersion.species == request.species,
-                            DatabaseVersion.uploaded_by.in_(
-                                select(User.id).where(User.role == UserRoleEnum.PUBLIC)
-                            )
-                        )
-                    )
-                )
-            )
-        else:  # COLLABORATOR or PRIVATE_USER
-            # Can see their data, collaborators' data, and public data
-            access_conditions.extend([
-                Sequence.version_added.in_(
-                    select(DatabaseVersion.version).where(
-                        and_(
-                            DatabaseVersion.species == request.species,
-                            DatabaseVersion.uploaded_by.in_(accessible_ids)
-                        )
-                    )
-                ),
-                Sequence.version_added.in_(
-                    select(DatabaseVersion.version).where(
-                        and_(
-                            DatabaseVersion.species == request.species,
-                            DatabaseVersion.uploaded_by.in_(
-                                select(User.id).where(User.role == UserRoleEnum.PUBLIC)
-                            )
-                        )
-                    )
-                )
-            ])
-        
-        if access_conditions:
-            query = query.where(or_(*access_conditions))
+    # NOTE: Removed role-based access control filtering here
+    # All users can see all query data - specific restrictions will be handled in the UI later
 
     # Calculate total records using a more efficient count query
     count_query = select(func.count(Sequence.alleleid))
@@ -1085,54 +1039,7 @@ async def get_sequences(
                 elif field == 'associated_trait':
                     count_query = count_query.where(Sequence.associated_trait.ilike(f"%{filter_obj.value}%"))
     
-    # Apply the same access control filters to count query
-    if not current_user.is_admin:
-        # Pre-compute accessible user IDs to avoid repeated subqueries
-        collaborator_ids = [collaboration.user_id for collaboration in current_user.collaborator_in]
-        accessible_ids = [current_user.id] + collaborator_ids
-        
-        # Create a more efficient access control filter
-        access_conditions = []
-        
-        if current_user.role == UserRoleEnum.PUBLIC:
-            # Public users can only see data uploaded by public users
-            access_conditions.append(
-                Sequence.version_added.in_(
-                    select(DatabaseVersion.version).where(
-                        and_(
-                            DatabaseVersion.species == request.species,
-                            DatabaseVersion.uploaded_by.in_(
-                                select(User.id).where(User.role == UserRoleEnum.PUBLIC)
-                            )
-                        )
-                    )
-                )
-            )
-        else:  # COLLABORATOR or PRIVATE_USER
-            # Can see their data, collaborators' data, and public data
-            access_conditions.extend([
-                Sequence.version_added.in_(
-                    select(DatabaseVersion.version).where(
-                        and_(
-                            DatabaseVersion.species == request.species,
-                            DatabaseVersion.uploaded_by.in_(accessible_ids)
-                        )
-                    )
-                ),
-                Sequence.version_added.in_(
-                    select(DatabaseVersion.version).where(
-                        and_(
-                            DatabaseVersion.species == request.species,
-                            DatabaseVersion.uploaded_by.in_(
-                                select(User.id).where(User.role == UserRoleEnum.PUBLIC)
-                            )
-                        )
-                    )
-                )
-            ])
-        
-        if access_conditions:
-            count_query = count_query.where(or_(*access_conditions))
+    # NOTE: Removed role-based access control filtering from count query as well
 
     total_result = await db.execute(count_query)
     total = total_result.scalar()

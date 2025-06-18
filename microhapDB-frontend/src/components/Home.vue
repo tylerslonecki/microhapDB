@@ -62,33 +62,7 @@
           </div>
         </div>
         
-        <div v-if="canAccessPrivateData" class="feature-card">
-          <i class="pi pi-cloud-upload feature-icon"></i>
-          <h3>Data Contribution</h3>
-          <p><strong>Contribute microhaplotype datasets</strong> to HaploSearch and <strong>expand the database</strong> with new markers</p>
-          <div class="card-action">
-            <Button 
-              label="Upload Data" 
-              icon="pi pi-upload" 
-              @click="$router.push('/data-upload')"
-              class="p-button-sm"
-            />
-          </div>
-        </div>
-        
-        <div v-if="userRole === 'private_user'" class="feature-card">
-          <i class="pi pi-users feature-icon"></i>
-          <h3>Privacy & Collaborators</h3>
-          <p><strong>Manage collaborators</strong> to share private datasets, <strong>coordinate research projects</strong>, and <strong>control access</strong> to sensitive genetic data</p>
-          <div class="card-action">
-            <Button 
-              label="Manage Privacy" 
-              icon="pi pi-users" 
-              @click="$router.push('/user-management')"
-              class="p-button-sm"
-            />
-          </div>
-        </div>
+
         
         <div v-if="isAdmin" class="feature-card">
           <i class="pi pi-cog feature-icon"></i>
