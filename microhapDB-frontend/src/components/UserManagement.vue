@@ -35,7 +35,7 @@
                   <i class="pi pi-users text-blue-600 mr-2"></i>
                   <h4 class="text-lg font-medium text-900 mb-0">Shared with Collaborators</h4>
                 </div>
-                <p class="text-600 text-sm mb-2">Visible to you and your collaborators only:</p>
+                <p class="text-600 text-sm mb-2">Visible to you and other private users you've designated as collaborators:</p>
                 <ul class="text-600 text-sm mb-0 pl-3">
                   <li><strong>Program</strong> - Internal program classifications</li>
                   <li>Your private data uploads</li>
@@ -74,10 +74,10 @@
           <div class="flex align-items-center">
             <i class="pi pi-info-circle mr-3 text-2xl text-orange-500"></i>
             <div>
-              <h3 class="text-xl font-medium text-900 mb-1">Private User Access</h3>
+              <h3 class="text-xl font-medium text-900 mb-1">Private User Collaboration</h3>
               <p class="m-0 text-600">
-                As a private user, you can manage collaborators to share your private data and collaborate on research. 
-                Adding someone as a collaborator gives them access to your private datasets and uploads, but your personal 
+                As a private user, you can designate other private users as collaborators to share your private data and coordinate research. 
+                Adding another private user as a collaborator gives them access to your private datasets and uploads, while your personal 
                 account information remains private. Only system administrators can view all user data for system management purposes.
               </p>
             </div>
@@ -88,7 +88,7 @@
       <!-- Personal Collaborator Management Section -->
       <div class="card">
         <div class="flex align-items-center justify-content-between mb-3">
-          <h3 class="text-xl font-medium text-900 mb-0">My Collaborators</h3>
+          <h3 class="text-xl font-medium text-900 mb-0">My Collaborators (Private Users)</h3>
           <Tag :value="`${personalCollaborators.length} Active`" severity="info" />
         </div>
         
@@ -97,7 +97,7 @@
             <i class="pi pi-info-circle text-blue-500 mr-2 mt-1"></i>
             <div>
               <p class="text-600 text-sm mb-2">
-                <strong>How Collaboration Works:</strong> When you add someone as a collaborator, they gain access to:
+                <strong>How Private User Collaboration Works:</strong> When you add another private user as a collaborator, they gain access to:
               </p>
               <ul class="text-600 text-sm m-0 pl-3">
                 <li>Your private data uploads and datasets</li>
@@ -105,7 +105,7 @@
                 <li>Ability to view and work with your private database entries</li>
               </ul>
               <p class="text-600 text-sm mt-2 mb-0">
-                <strong>Note:</strong> Your personal account information and settings remain private. 
+                <strong>Note:</strong> Only private users can be collaborators. Your personal account information and settings remain private. 
                 You can remove collaborators at any time to revoke their access.
               </p>
             </div>
@@ -144,11 +144,11 @@
           <h4 class="text-lg font-medium text-900 mb-3">Add New Collaborator</h4>
           <div v-if="availablePersonalUsers.length === 0" class="surface-200 border-round p-4">
             <i class="pi pi-info-circle mr-2"></i>
-            No available users to add as collaborators. All existing users are either already collaborators or have admin access.
+            No available private users to add as collaborators. All existing private users are either already collaborators or you are the only private user in the system.
           </div>
           <div v-else>
             <p class="text-600 text-sm mb-3">
-              Select a user to grant them access to your private data and research projects:
+              Select a private user to grant them access to your private data and research projects:
             </p>
             <div class="flex gap-2">
               <Dropdown
@@ -233,8 +233,11 @@ export default {
         const response = await axios.get('/auth/users');
         const collaboratorIds = this.personalCollaborators.map(c => c.id);
         
+        // Only show private users as potential collaborators (exclude admins and public users)
         this.availablePersonalUsers = response.data.filter(user => {
-          return user.id !== this.user?.id && !collaboratorIds.includes(user.id);
+          return user.role === 'private_user' && 
+                 user.id !== this.user?.id && 
+                 !collaboratorIds.includes(user.id);
         });
       } catch (error) {
         console.error('Error loading available users for personal collaborators:', error);

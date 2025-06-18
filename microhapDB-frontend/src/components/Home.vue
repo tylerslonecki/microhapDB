@@ -7,19 +7,15 @@
       <div v-if="isAuthenticated" class="auth-welcome">
         <div v-if="isAdmin" class="admin-welcome">
           <h3>Welcome, {{ username }}! (Administrator)</h3>
-          <p>You have full administrative access to manage the database, upload data, and oversee user accounts. Access the Admin panel to manage system settings and user permissions.</p>
+          <p>You have full administrative access to upload data and user accounts. Access the Admin panel to manage user permissions.</p>
         </div>
         <div v-else-if="userRole === 'private_user'" class="private-user-welcome">
           <h3>Welcome, {{ username }}! (Private User)</h3>
-          <p>You have access to all HaploSearch features including private data uploads and collaborator management. Visit Privacy & Collaborators to manage your research partnerships.</p>
-        </div>
-        <div v-else-if="userRole === 'collaborator'" class="collaborator-welcome">
-          <h3>Welcome, {{ username }}! (Collaborator)</h3>
-          <p>You have access to shared research data and collaborative projects. Explore the database and work with datasets shared by your research partners.</p>
+          <p>You have access to public & private microhaplotype data and collaborator management. Visit Privacy & Collaborators to manage your data collaborations with other private users.</p>
         </div>
         <div v-else class="public-welcome">
           <h3>Welcome, {{ username }}!</h3>
-          <p>You have access to public microhaplotype data and can explore the comprehensive database for your research needs.</p>
+          <p>You have access to public microhaplotype data and can explore the database for your research needs.</p>
         </div>
       </div>
       
@@ -27,37 +23,20 @@
         <div class="feature-card">
           <i class="pi pi-search feature-icon"></i>
           <h3>Query Microhaplotypes</h3>
-          <p>Search for specific microhaplotype markers with advanced filtering by allele sequences, population frequencies, and genetic diversity metrics</p>
+          <p>Search and filter microhaplotype records by species, allele ID, sequence, info field, and associated traits with paginated results and CSV export. View detailed allele information, analyze shared vs. combined accessions across selected markers, and export accession data for further analysis.</p>
         </div>
         
-        <div class="feature-card">
-          <i class="pi pi-chart-bar feature-icon"></i>
-          <h3>Population Analytics</h3>
-          <p>Generate interactive visualizations for allele frequency distributions, missing data analysis, and population genetic comparisons</p>
-        </div>
-        
+
         <div class="feature-card">
           <i class="pi pi-database feature-icon"></i>
           <h3>Database Insights</h3>
-          <p>Access comprehensive reports on database statistics, marker coverage, population representation, and data quality metrics</p>
+          <p>View database growth over time with allele count statistics by version, program contributions, file upload history, and downloadable reports</p>
         </div>
         
         <div v-if="canAccessPrivateData" class="feature-card">
           <i class="pi pi-cloud-upload feature-icon"></i>
           <h3>Data Contribution</h3>
-          <p>Upload your microhaplotype datasets to contribute to the research community and expand the database with new populations and markers</p>
-        </div>
-        
-        <div v-if="userRole === 'private_user'" class="feature-card">
-          <i class="pi pi-users feature-icon"></i>
-          <h3>Research Collaboration</h3>
-          <p>Manage collaborators to share private datasets, coordinate research projects, and control access to sensitive genetic data</p>
-        </div>
-        
-        <div v-if="isAdmin" class="feature-card">
-          <i class="pi pi-cog feature-icon"></i>
-          <h3>System Administration</h3>
-          <p>Manage user accounts, oversee data uploads, monitor system performance, and maintain database integrity and security</p>
+          <p>Contribute microhaplotype datasets to HaploSearch and expand the database with new markers</p>
         </div>
       </div>
     </div>
@@ -280,21 +259,6 @@ export default {
 
 .private-user-welcome p {
   color: #1565c0;
-}
-
-.collaborator-welcome {
-  background-color: #f3e5f5;
-  border: 1px solid #9c27b0;
-  border-radius: 8px;
-  padding: 1.5rem;
-}
-
-.collaborator-welcome h3 {
-  color: #4a148c;
-}
-
-.collaborator-welcome p {
-  color: #7b1fa2;
 }
 
 .public-welcome {
