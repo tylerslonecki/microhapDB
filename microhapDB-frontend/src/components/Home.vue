@@ -2,36 +2,89 @@
   <div class="home-container">
     <div class="welcome-section">
       <h1>Welcome to HaploSearch</h1>
-      <p>A comprehensive microhaplotype database for genetic research</p>
+      <p>A comprehensive microhaplotype database for population genetics and forensic research</p>
       
       <div v-if="isAuthenticated" class="auth-welcome">
-        <h3>Welcome, {{ username }}!</h3>
-        <p>You're now logged in and can access all features available to you.</p>
+        <div v-if="isAdmin" class="admin-welcome">
+          <h3>Welcome, {{ username }}! (Administrator)</h3>
+          <p>You have full administrative access to manage the database, upload data, and oversee user accounts. Access the Admin panel to manage system settings and user permissions.</p>
+        </div>
+        <div v-else-if="userRole === 'private_user'" class="private-user-welcome">
+          <h3>Welcome, {{ username }}! (Private User)</h3>
+          <p>You have access to all HaploSearch features including private data uploads and collaborator management. Visit Privacy & Collaborators to manage your research partnerships.</p>
+        </div>
+        <div v-else-if="userRole === 'collaborator'" class="collaborator-welcome">
+          <h3>Welcome, {{ username }}! (Collaborator)</h3>
+          <p>You have access to shared research data and collaborative projects. Explore the database and work with datasets shared by your research partners.</p>
+        </div>
+        <div v-else class="public-welcome">
+          <h3>Welcome, {{ username }}!</h3>
+          <p>You have access to public microhaplotype data and can explore the comprehensive database for your research needs.</p>
+        </div>
       </div>
       
       <div class="features-section">
         <div class="feature-card">
           <i class="pi pi-search feature-icon"></i>
-          <h3>Search</h3>
-          <p>Query the database for microhaplotypes with advanced filtering</p>
+          <h3>Query Microhaplotypes</h3>
+          <p>Search for specific microhaplotype markers with advanced filtering by allele sequences, population frequencies, and genetic diversity metrics</p>
         </div>
         
         <div class="feature-card">
           <i class="pi pi-chart-bar feature-icon"></i>
-          <h3>Visualize</h3>
-          <p>Generate interactive visualizations for genetic data analysis</p>
+          <h3>Population Analytics</h3>
+          <p>Generate interactive visualizations for allele frequency distributions, missing data analysis, and population genetic comparisons</p>
         </div>
         
         <div class="feature-card">
+          <i class="pi pi-database feature-icon"></i>
+          <h3>Database Insights</h3>
+          <p>Access comprehensive reports on database statistics, marker coverage, population representation, and data quality metrics</p>
+        </div>
+        
+        <div v-if="canAccessPrivateData" class="feature-card">
           <i class="pi pi-cloud-upload feature-icon"></i>
-          <h3>Upload</h3>
-          <p>Contribute to the database by uploading your microhaplotype data</p>
+          <h3>Data Contribution</h3>
+          <p>Upload your microhaplotype datasets to contribute to the research community and expand the database with new populations and markers</p>
+        </div>
+        
+        <div v-if="userRole === 'private_user'" class="feature-card">
+          <i class="pi pi-users feature-icon"></i>
+          <h3>Research Collaboration</h3>
+          <p>Manage collaborators to share private datasets, coordinate research projects, and control access to sensitive genetic data</p>
+        </div>
+        
+        <div v-if="isAdmin" class="feature-card">
+          <i class="pi pi-cog feature-icon"></i>
+          <h3>System Administration</h3>
+          <p>Manage user accounts, oversee data uploads, monitor system performance, and maintain database integrity and security</p>
         </div>
       </div>
     </div>
     
     <div class="auth-section" v-if="!isAuthenticated">
-      <p>Sign in with your ORCID ID to access all features</p>
+      <div class="login-info">
+        <h3>Get Started with HaploSearch</h3>
+        <p>Sign in with your ORCID ID to access the full suite of microhaplotype research tools</p>
+        <div class="login-benefits">
+          <div class="benefit-item">
+            <i class="pi pi-check-circle"></i>
+            <span>Access to comprehensive microhaplotype database</span>
+          </div>
+          <div class="benefit-item">
+            <i class="pi pi-check-circle"></i>
+            <span>Advanced query and filtering capabilities</span>
+          </div>
+          <div class="benefit-item">
+            <i class="pi pi-check-circle"></i>
+            <span>Interactive data visualizations and analytics</span>
+          </div>
+          <div class="benefit-item">
+            <i class="pi pi-check-circle"></i>
+            <span>Population genetics and forensic research tools</span>
+          </div>
+        </div>
+      </div>
       <button @click="login" class="login-button">
         <i class="pi pi-sign-in"></i>
         Login with ORCID
@@ -41,15 +94,16 @@
 </template>
 
 <script>
-import { mapState, mapActions } from 'vuex';
+import { mapState, mapGetters, mapActions } from 'vuex';
 import axios from 'axios';
 
 export default {
   name: 'HomePage',
   computed: {
     ...mapState('auth', ['isAuthenticated', 'user']),
+    ...mapGetters('auth', ['isAdmin', 'canAccessPrivateData', 'userRole']),
     username() {
-      return this.user?.username || 'User';
+      return this.user?.full_name || this.user?.username || 'User';
     }
   },
   async created() {
@@ -197,6 +251,67 @@ export default {
   margin: 0;
 }
 
+/* Role-specific welcome styling */
+.admin-welcome {
+  background-color: #fff3e0;
+  border: 1px solid #ff9800;
+  border-radius: 8px;
+  padding: 1.5rem;
+}
+
+.admin-welcome h3 {
+  color: #e65100;
+}
+
+.admin-welcome p {
+  color: #f57c00;
+}
+
+.private-user-welcome {
+  background-color: #e3f2fd;
+  border: 1px solid #2196f3;
+  border-radius: 8px;
+  padding: 1.5rem;
+}
+
+.private-user-welcome h3 {
+  color: #0d47a1;
+}
+
+.private-user-welcome p {
+  color: #1565c0;
+}
+
+.collaborator-welcome {
+  background-color: #f3e5f5;
+  border: 1px solid #9c27b0;
+  border-radius: 8px;
+  padding: 1.5rem;
+}
+
+.collaborator-welcome h3 {
+  color: #4a148c;
+}
+
+.collaborator-welcome p {
+  color: #7b1fa2;
+}
+
+.public-welcome {
+  background-color: #e8f5e8;
+  border: 1px solid #4caf50;
+  border-radius: 8px;
+  padding: 1.5rem;
+}
+
+.public-welcome h3 {
+  color: #2e7d32;
+}
+
+.public-welcome p {
+  color: #388e3c;
+}
+
 .features-section {
   display: flex;
   justify-content: space-between;
@@ -210,7 +325,7 @@ export default {
   border-radius: 8px;
   padding: 1.5rem;
   flex: 1;
-  min-width: 250px;
+  min-width: 280px;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
   transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
@@ -234,6 +349,7 @@ export default {
 
 .feature-card p {
   color: var(--text-color-secondary);
+  line-height: 1.5;
 }
 
 .auth-section {
@@ -241,6 +357,41 @@ export default {
   padding: 2rem;
   background-color: #f8f9fa;
   border-radius: 8px;
+}
+
+.login-info h3 {
+  color: var(--text-color);
+  margin-bottom: 1rem;
+}
+
+.login-info p {
+  color: var(--text-color-secondary);
+  margin-bottom: 1.5rem;
+}
+
+.login-benefits {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+  text-align: left;
+}
+
+.benefit-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
+}
+
+.benefit-item i {
+  color: #4caf50;
+  font-size: 1.1rem;
+}
+
+.benefit-item span {
+  color: var(--text-color);
+  font-size: 0.95rem;
 }
 
 .login-button {
@@ -274,6 +425,15 @@ export default {
   
   .feature-card {
     min-width: auto;
+  }
+  
+  .login-benefits {
+    grid-template-columns: 1fr;
+  }
+  
+  .benefit-item {
+    justify-content: center;
+    text-align: center;
   }
 }
 </style>
