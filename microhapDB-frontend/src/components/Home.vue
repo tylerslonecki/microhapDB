@@ -26,11 +26,16 @@
           <p>Search and filter microhaplotype records by species, allele ID, sequence, info field, and associated traits with paginated results and CSV export. View detailed allele information, analyze shared vs. combined accessions across selected markers, and export accession data for further analysis.</p>
         </div>
         
-
         <div class="feature-card">
           <i class="pi pi-database feature-icon"></i>
           <h3>Database Insights</h3>
           <p>View database growth over time with allele count statistics by version, program contributions, file upload history, and downloadable reports</p>
+        </div>
+        
+        <div class="feature-card">
+          <i class="pi pi-chart-line feature-icon"></i>
+          <h3>Missing Alleles Analysis</h3>
+          <p>Compare program datasets against the complete database to identify missing alleles by chromosome and locus. Interactive genome visualization shows diversity patterns and coverage gaps, with detailed missing allele lists and direct integration to query workflows.</p>
         </div>
         
         <div v-if="canAccessPrivateData" class="feature-card">
