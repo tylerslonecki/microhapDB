@@ -74,7 +74,7 @@ const routes = [
   },
   {
     path: '/user-management',
-    name: 'UserManagement',
+    name: 'PrivacyCollaborators',
     component: () => import('./components/UserManagement.vue'),
     meta: { requiresAuth: true, requiredRole: 'private_user' }
   },

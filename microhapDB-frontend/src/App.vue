@@ -220,7 +220,7 @@ export default {
           route: '/report',
         },
         {
-          label: 'User Management',
+          label: 'Privacy & Collaborators',
           icon: 'pi pi-users',
           route: '/user-management',
           // Only visible to private users (non-admin)
@@ -325,7 +325,7 @@ export default {
       // Update visibility based on authentication and admin status
       this.sidebarItems.forEach((item) => {
         // Handle user management for private users
-        if (item.label === 'User Management') {
+        if (item.label === 'Privacy & Collaborators') {
           item.visible = this.userRole === 'private_user';
         }
         
@@ -338,7 +338,7 @@ export default {
             item.subItems.forEach(subItem => {
               if (subItem.label === 'System Administration' || subItem.label === 'Admin Dashboard') {
                 subItem.visible = this.isAdmin;
-              } else if (subItem.label === 'User Management') {
+              } else if (subItem.label === 'Privacy & Collaborators') {
                 subItem.visible = this.isAdmin;
               }
             });

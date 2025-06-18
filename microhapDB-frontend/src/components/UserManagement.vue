@@ -1,18 +1,74 @@
 <template>
   <div class="user-management">
     <div class="surface-card p-4 border-round shadow-2">
-      <div class="text-3xl font-medium text-900 mb-4">User Management</div>
+      <div class="text-3xl font-medium text-900 mb-4">Privacy & Collaborators</div>
       
-      <!-- Access Information -->
+      <!-- Privacy Information -->
       <div class="card mb-4">
         <div class="p-4 surface-100 border-round">
+          <div class="flex align-items-center mb-3">
+            <i class="pi pi-shield mr-3 text-2xl text-blue-500"></i>
+            <h3 class="text-xl font-medium text-900 mb-0">Data Privacy & Sharing</h3>
+          </div>
+          <div class="grid">
+            <div class="col-12 md:col-4 mb-3">
+              <div class="card h-full p-3 surface-50">
+                <div class="flex align-items-center mb-2">
+                  <i class="pi pi-eye text-green-600 mr-2"></i>
+                  <h4 class="text-lg font-medium text-900 mb-0">Public Data</h4>
+                </div>
+                <p class="text-600 text-sm mb-0">
+                  • Published datasets<br>
+                  • Database reports and statistics<br>
+                  • General query results<br>
+                  • Public research data
+                </p>
+              </div>
+            </div>
+            <div class="col-12 md:col-4 mb-3">
+              <div class="card h-full p-3 surface-50">
+                <div class="flex align-items-center mb-2">
+                  <i class="pi pi-users text-blue-600 mr-2"></i>
+                  <h4 class="text-lg font-medium text-900 mb-0">Shared with Collaborators</h4>
+                </div>
+                <p class="text-600 text-sm mb-0">
+                  • Your private data uploads<br>
+                  • Collaborative research projects<br>
+                  • Shared analysis results<br>
+                  • Private datasets you've shared
+                </p>
+              </div>
+            </div>
+            <div class="col-12 md:col-4 mb-3">
+              <div class="card h-full p-3 surface-50">
+                <div class="flex align-items-center mb-2">
+                  <i class="pi pi-lock text-red-600 mr-2"></i>
+                  <h4 class="text-lg font-medium text-900 mb-0">Always Private</h4>
+                </div>
+                <p class="text-600 text-sm mb-0">
+                  • Your account details<br>
+                  • Personal settings and preferences<br>
+                  • Upload history and metadata<br>
+                  • Collaboration relationships<br>
+                  <small class="text-red-500">*Visible only to administrators</small>
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Access Information -->
+      <div class="card mb-4">
+        <div class="p-4 surface-200 border-round">
           <div class="flex align-items-center">
-            <i class="pi pi-info-circle mr-3 text-2xl text-blue-500"></i>
+            <i class="pi pi-info-circle mr-3 text-2xl text-orange-500"></i>
             <div>
               <h3 class="text-xl font-medium text-900 mb-1">Private User Access</h3>
               <p class="m-0 text-600">
-                As a private user, you can manage your collaborators and access enhanced features. 
-                You do not have access to admin functions like creating users or accessing system data uploads.
+                As a private user, you can manage collaborators to share your private data and collaborate on research. 
+                Adding someone as a collaborator gives them access to your private datasets and uploads, but your personal 
+                account information remains private. Only system administrators can view all user data for system management purposes.
               </p>
             </div>
           </div>
@@ -21,11 +77,35 @@
 
       <!-- Personal Collaborator Management Section -->
       <div class="card">
-        <h3 class="text-xl font-medium text-900 mb-3">My Collaborators</h3>
+        <div class="flex align-items-center justify-content-between mb-3">
+          <h3 class="text-xl font-medium text-900 mb-0">My Collaborators</h3>
+          <Tag :value="`${personalCollaborators.length} Active`" severity="info" />
+        </div>
+        
+        <div class="p-3 surface-50 border-round mb-4">
+          <div class="flex align-items-start">
+            <i class="pi pi-info-circle text-blue-500 mr-2 mt-1"></i>
+            <div>
+              <p class="text-600 text-sm mb-2">
+                <strong>How Collaboration Works:</strong> When you add someone as a collaborator, they gain access to:
+              </p>
+              <ul class="text-600 text-sm m-0 pl-3">
+                <li>Your private data uploads and datasets</li>
+                <li>Shared research projects and analysis results</li>
+                <li>Ability to view and work with your private database entries</li>
+              </ul>
+              <p class="text-600 text-sm mt-2 mb-0">
+                <strong>Note:</strong> Your personal account information and settings remain private. 
+                You can remove collaborators at any time to revoke their access.
+              </p>
+            </div>
+          </div>
+        </div>
+
         <ProgressSpinner v-if="loadingPersonalCollaborators" class="w-4rem h-4rem" />
         <div v-else-if="personalCollaborators.length === 0" class="surface-200 border-round p-4">
-          <i class="pi pi-info-circle mr-2"></i>
-          You don't have any collaborators yet.
+          <i class="pi pi-users mr-2"></i>
+          You don't have any collaborators yet. Add collaborators below to share your private data.
         </div>
         <div v-else>
           <ul class="list-none p-0 m-0">
@@ -44,46 +124,51 @@
                 icon="pi pi-trash" 
                 class="p-button-rounded p-button-danger p-button-text"
                 @click="removePersonalCollaborator(collaborator.id)"
-                v-tooltip.left="'Remove Collaborator'"
+                v-tooltip.left="'Remove Collaborator (Revokes access to your private data)'"
               />
             </li>
           </ul>
         </div>
 
         <div class="mt-4">
-          <h4 class="text-lg font-medium text-900 mb-3">Add Collaborator</h4>
+          <h4 class="text-lg font-medium text-900 mb-3">Add New Collaborator</h4>
           <div v-if="availablePersonalUsers.length === 0" class="surface-200 border-round p-4">
             <i class="pi pi-info-circle mr-2"></i>
-            No available users to add as collaborators.
+            No available users to add as collaborators. All existing users are either already collaborators or have admin access.
           </div>
-          <div v-else class="flex gap-2">
-            <Dropdown
-              v-model="selectedPersonalUserId"
-              :options="availablePersonalUsers"
-              optionLabel="full_name"
-              optionValue="id"
-              placeholder="Select a user..."
-              class="w-full"
-            >
-              <template #option="slotProps">
-                <div>
-                  <div class="font-medium">{{ slotProps.option.full_name }}</div>
-                  <div class="text-sm text-600">{{ slotProps.option.orcid }}</div>
-                  <Tag 
-                    :value="slotProps.option.role" 
-                    :severity="getRoleSeverity(slotProps.option.role)"
-                    class="mt-1"
-                  />
-                </div>
-              </template>
-            </Dropdown>
-            <Button 
-              label="Add" 
-              icon="pi pi-plus"
-              @click="addPersonalCollaborator"
-              :disabled="!selectedPersonalUserId"
-              class="p-button-success"
-            />
+          <div v-else>
+            <p class="text-600 text-sm mb-3">
+              Select a user to grant them access to your private data and research projects:
+            </p>
+            <div class="flex gap-2">
+              <Dropdown
+                v-model="selectedPersonalUserId"
+                :options="availablePersonalUsers"
+                optionLabel="full_name"
+                optionValue="id"
+                placeholder="Select a user to add as collaborator..."
+                class="w-full"
+              >
+                <template #option="slotProps">
+                  <div>
+                    <div class="font-medium">{{ slotProps.option.full_name }}</div>
+                    <div class="text-sm text-600">{{ slotProps.option.orcid }}</div>
+                    <Tag 
+                      :value="slotProps.option.role" 
+                      :severity="getRoleSeverity(slotProps.option.role)"
+                      class="mt-1"
+                    />
+                  </div>
+                </template>
+              </Dropdown>
+              <Button 
+                label="Add Collaborator" 
+                icon="pi pi-plus"
+                @click="addPersonalCollaborator"
+                :disabled="!selectedPersonalUserId"
+                class="p-button-success"
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -100,7 +185,7 @@ import axios from 'axios';
 import { mapState, mapGetters } from 'vuex';
 
 export default {
-  name: 'UserManagement',
+  name: 'PrivacyCollaborators',
   setup() {
     const toast = useToast();
     return { toast };
@@ -216,7 +301,7 @@ export default {
         this.toast.add({
           severity: 'error',
           summary: 'Access Denied',
-          detail: 'This page is only accessible to private users.',
+          detail: 'This page is only accessible to private users for managing privacy settings and collaborators.',
           life: 5000
         });
         this.$router.push('/');
@@ -228,11 +313,11 @@ export default {
         this.loadAvailablePersonalUsers()
       ]);
     } catch (error) {
-      console.error('Error in UserManagement created hook:', error);
+      console.error('Error in PrivacyCollaborators created hook:', error);
       this.toast.add({
         severity: 'error',
         summary: 'Error',
-        detail: 'Failed to initialize user management. Please try refreshing the page.',
+        detail: 'Failed to initialize privacy and collaboration settings. Please try refreshing the page.',
         life: 5000
       });
     } finally {
