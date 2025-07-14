@@ -234,6 +234,7 @@ async def health_check():
             content=health_status
         )
     
+    
     return health_status
 
 if __name__ == "__main__":
